@@ -1,11 +1,13 @@
 // === CodeMirror 初始实例 ===
+let currentTabSize = 4;
+
 const cmOptions = {
     mode: "application/json",
     lineNumbers: true,
     foldGutter: true,
     gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
     matchBrackets: true,
-    tabSize: 2
+    tabSize: currentTabSize
 };
 
 const editorLeft = CodeMirror.fromTextArea(document.getElementById("json-input-left"), cmOptions);
@@ -77,6 +79,19 @@ fontSizeSlider.addEventListener('input', (e) => {
     editorLeft.refresh();
     editorRight.refresh();
 });
+
+// 缩进大小调整逻辑
+const tabSizeSlider = document.getElementById('tab-size-slider');
+const tabSizeVal = document.getElementById('tab-size-val');
+if (tabSizeSlider) {
+    tabSizeSlider.addEventListener('input', (e) => {
+        const size = parseInt(e.target.value);
+        currentTabSize = size;
+        tabSizeVal.textContent = size;
+        editorLeft.setOption('tabSize', size);
+        editorRight.setOption('tabSize', size);
+    });
+}
 
 // 快捷键捕获录入
 function bindShortcutInput(inputId, targetObjKey) {
@@ -248,7 +263,7 @@ function formatJSON(editor) {
         const val = editor.getValue();
         if (!val.trim()) return;
         const obj = JSON.parse(val);
-        editor.setValue(JSON.stringify(obj, null, 2));
+        editor.setValue(JSON.stringify(obj, null, currentTabSize));
     } catch (e) {
         alert('格式化失败，请检查 JSON 语法是否正确\n' + e.message);
     }
