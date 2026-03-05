@@ -15,7 +15,7 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
 let shortcuts = {
     lv1: { ctrl: true, shift: true, key: "1" },
     lv2: { ctrl: true, shift: true, key: "2" },
-    unfold: { ctrl: true, shift: true, key: "0" }
+    unfold: { ctrl: true, shift: true, key: "3" }
 };
 
 // === 设置逻辑与主题切换 ===
@@ -178,17 +178,18 @@ function unfoldAll(cm) {
 
 // 层级折叠辅助
 function foldToLevel(cm, level) {
-    const targetIndent = (level - 1) * cm.getOption("tabSize");
+    const targetIndent = level * cm.getOption("tabSize");
     cm.operation(() => {
+        // Step 1: 先全部展开，防止之前的折叠状态产生干扰
+        for (let i = cm.firstLine(); i <= cm.lastLine(); i++) {
+            cm.foldCode(CodeMirror.Pos(i, 0), null, "unfold");
+        }
+        // Step 2: 将大于等于目标缩进级别的层进行折叠
         for (let i = cm.firstLine(); i <= cm.lastLine(); i++) {
             let lineText = cm.getLine(i);
             let indent = lineText.search(/\S/);
-            if (indent !== -1) {
-                if (indent >= targetIndent && indent > 0) {
-                    cm.foldCode(CodeMirror.Pos(i, 0), null, "fold");
-                } else if (indent < targetIndent) {
-                    cm.foldCode(CodeMirror.Pos(i, 0), null, "unfold");
-                }
+            if (indent !== -1 && indent >= targetIndent) {
+                cm.foldCode(CodeMirror.Pos(i, 0), null, "fold");
             }
         }
     });
