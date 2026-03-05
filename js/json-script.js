@@ -83,7 +83,7 @@ function bindShortcutInput(inputId, targetObjKey) {
     const input = document.getElementById(inputId);
     input.addEventListener('keydown', (e) => {
         e.preventDefault();
-        input.blur();
+        e.stopPropagation();
         
         const isCtrl = e.ctrlKey || e.metaKey;
         const isShift = e.shiftKey;
@@ -94,6 +94,7 @@ function bindShortcutInput(inputId, targetObjKey) {
         if (key === 'BACKSPACE' || key === 'DELETE') {
             input.value = '';
             shortcuts[targetObjKey] = null; // Clear
+            input.blur();
             return;
         }
         
@@ -104,6 +105,8 @@ function bindShortcutInput(inputId, targetObjKey) {
         
         input.value = displayStr.join('+');
         shortcuts[targetObjKey] = { ctrl: isCtrl, shift: isShift, key: key === ' ' ? ' ' : key };
+        // 录入完释放焦点
+        input.blur();
     });
 }
 bindShortcutInput('shortcut-lv1', 'lv1');
@@ -112,8 +115,8 @@ bindShortcutInput('shortcut-unfold', 'unfold');
 
 // 全局快捷键拦截器
 window.addEventListener('keydown', (e) => {
-    // 如果焦点在输入框/录入框上，不要触发折叠快捷键
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    // 如果焦点在设置面板内的输入框/录入框上，不要触发编辑器快捷键
+    if (e.target.closest('#settings-modal')) return;
 
     const checkShortcut = (def) => def && (e.ctrlKey || e.metaKey) === def.ctrl && e.shiftKey === def.shift && e.key.toUpperCase() === def.key;
     
