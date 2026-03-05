@@ -141,11 +141,11 @@ body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, Bl
 .modal { background: var(--bg-panel); width: 360px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); animation: modal-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1); overflow: hidden; }
 .modal-header { padding: 18px 24px; border-bottom: 1px solid var(--border-soft); font-weight: 600; font-size: 16px; color: var(--text-primary); background: var(--bg-toolbar); }
 .modal-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
-.setting-item { display: grid; grid-template-columns: 80px 240px; justify-content: center; align-items: center; gap: 24px; margin: 0 auto 8px auto; width: fit-content; }
-.setting-item label { font-size: 14px; color: var(--text-secondary); text-align: right; white-space: nowrap; }
-.setting-item select { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-soft); font-size: 14px; outline: none; cursor: pointer; background: var(--bg-panel); color: var(--text-primary); width: 100%; box-sizing: border-box; transition: border-color 0.2s; }
+.setting-item { display: flex; justify-content: space-between; align-items: center; margin: 0 30px; height: 38px; }
+.setting-item label { font-size: 14px; color: var(--text-secondary); text-align: left; white-space: nowrap; flex-shrink: 0; }
+.setting-item select { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-soft); font-size: 14px; outline: none; cursor: pointer; background: var(--bg-panel); color: var(--text-primary); width: 200px; box-sizing: border-box; transition: border-color 0.2s; }
 .setting-item select:focus { border-color: var(--core-blue); }
-.setting-control { width: 100%; display: flex; align-items: center; gap: 10px; box-sizing: border-box; }
+.setting-control { width: 200px; display: flex; align-items: center; gap: 10px; box-sizing: border-box; }
 .setting-item input[type='checkbox'] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--core-blue); }
 
 .shortcut-input {
@@ -155,7 +155,7 @@ body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, Bl
     font-size: 14px;
     outline: none;
     cursor: pointer;
-    width: 100%;
+    width: 200px;
     text-align: center;
     background: var(--bg-toolbar);
     color: var(--core-blue);
@@ -203,7 +203,7 @@ body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, Bl
 .settings-pane {
     display: none;
     flex-direction: column;
-    gap: 24px;
+    gap: 20px;
     padding-top: 10px;
 }
 .settings-pane.active {
