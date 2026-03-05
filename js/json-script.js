@@ -13,9 +13,9 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
 
 // == 快捷键默认设置 ===
 let shortcuts = {
-    lv1: { ctrl: true, shift: true, key: "1" },
-    lv2: { ctrl: true, shift: true, key: "2" },
-    unfold: { ctrl: true, shift: true, key: "3" }
+    lv1: { ctrl: false, shift: true, alt: false, code: "Digit1", key: "1", displayKey: "1" },
+    lv2: { ctrl: false, shift: true, alt: false, code: "Digit2", key: "2", displayKey: "2" },
+    unfold: { ctrl: false, shift: true, alt: false, code: "Space", key: " ", displayKey: "SPACE" }
 };
 
 // === 设置逻辑与主题切换 ===
