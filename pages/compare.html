@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel 文档深度比较</title>
+    <!-- 引入 SheetJS 处理 Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        /* 额外的内联样式（如果有） */
+    </style>
+</head>
+<body>
+
+    <!-- 第一部分：上传页面 -->
+    <div id="upload-section">
+        <h1>上传文件开始对比</h1>
+        <div class="upload-container">
+            <div class="drop-zone" id="drop-1">
+                <div class="icon">📄</div>
+                <p>点击或拖拽上传<br>旧文件 (原表)</p>
+                <div class="file-name" id="name-1"></div>
+            </div>
+            <div class="drop-zone" id="drop-2">
+                <div class="icon">📄</div>
+                <p>点击或拖拽上传<br>新文件 (新表)</p>
+                <div class="file-name" id="name-2"></div>
+            </div>
+        </div>
+        <button id="start-btn" disabled>开始对比</button>
+        <input type="file" id="file-input-1" hidden accept=".xlsx, .xls">
+        <input type="file" id="file-input-2" hidden accept=".xlsx, .xls">
+    </div>
+
+    <!-- 第二部分：结果页面 -->
+    <div id="result-section">
+        <!-- 顶部 Sheet 导航 (普通模式) -->
+        <div id="normal-sheet-nav">
+            <!-- 动态生成 Tab -->
+        </div>
+
+        <!-- 工具栏 -->
+        <div class="toolbar">
+            <h2>对比结果 <span style="font-size:12px; color:#666; font-weight:normal; margin-left:10px;" id="current-key-info"></span></h2>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-icon" onclick="showKeySelectionModal(commonSheets[currentSheetIndex])">⚙ 设置主键</button>
+                <button class="btn-icon" id="fullscreen-btn">🖥️ 全屏显示</button>
+                <div id="fs-controls" style="display: none; gap: 5px;">
+                     <button class="btn-icon" id="layout-toggle-btn">📖 切换布局</button>
+                     <button class="btn-icon" id="exit-fullscreen-btn">❎ 退出全屏</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 对比视图主体 -->
+        <div id="comparison-view" class="layout-lr">
+            <div class="table-wrapper" id="wrapper-left">
+                <h3>旧文件 (Left)</h3>
+                <div id="table-container-left"></div>
+            </div>
+            <div class="table-wrapper" id="wrapper-right">
+                <h3>新文件 (Right)</h3>
+                <div id="table-container-right"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全屏浮动导航 -->
+    <div id="floating-nav">
+        <div class="nav-header" id="nav-drag-handle">
+            <span class="nav-title">工作表列表</span>
+            <span class="nav-close" id="nav-minimize-btn">_</span>
+        </div>
+        <div class="nav-content" id="floating-sheet-list">
+            <!-- 动态插入 Sheet 列表 -->
+        </div>
+        <div class="nav-actions">
+            <button class="nav-btn" id="nav-prev">⬅ 上一张</button>
+            <button class="nav-btn" id="nav-next">下一张 ➡</button>
+            <button class="nav-btn" id="nav-exit" title="退出全屏" style="color: #d32f2f;">❎</button>
+        </div>
+    </div>
+
+    <!-- 主键选择模态框 -->
+    <div class="modal-overlay" id="key-modal">
+        <div class="modal">
+            <div class="modal-header">设置主键 (行识别规则) - <span id="modal-sheet-name"></span></div>
+            <div style="font-size: 13px; color: #444; background:#f0f7f4; padding:10px; border-radius:6px; margin-bottom: 12px; line-height:1.6;">
+                <strong>🤔 什么是主键？</strong><br>
+                主键是能代表“这还是同一行”的列。<br>
+                <div style="margin-top:5px; padding-left:10px; color:#555;">
+                • <strong>情况1 (有ID)</strong>：如果有“订单号”或“工号”，勾选它即可。<br>
+                • <strong>情况2 (组合)</strong>：如果没有ID，请勾选组合，例如同时勾选 <strong>[客户]</strong> 和 <strong>[时间]</strong>。<br>
+                </div>
+                <div style="margin-top:5px; color:#107c41; font-weight:bold;">
+                💡 勾选正确的主键后，即使两张表的列顺序乱了、或者中间插入了新列，系统也能准确把相同的行对齐比较！
+                </div>
+            </div>
+            <div class="modal-body" id="key-options">
+                <!-- 动态插入列名 Checkbox -->
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="cursor: pointer; font-size: 13px;">
+                    <input type="checkbox" id="apply-all-check" checked> 
+                    应用到其他包含相同列名的工作表
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button id="confirm-key-btn" class="btn-icon" style="background: var(--primary-color); color: white; border: none;">确认并重新对比</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/script.js"></script>
+</body>
+</html>

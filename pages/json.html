@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-scheme="vscode">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON 对比与格式化</title>
+    
+    <!-- 引入刚刚下载到本地的 CodeMirror 样式 -->
+    <link rel="stylesheet" href="../css/lib/codemirror.css">
+    <link rel="stylesheet" href="../css/lib/foldgutter.css">
+
+    <link rel="stylesheet" href="../css/json-style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <header class="app-header">
+            <a href="../index.html" class="back-btn">← 返回工具箱</a>
+            <h1>JSON 对比与格式化</h1>
+            <div class="global-actions">
+                <button id="theme-toggle" class="icon-btn" title="切换深色/浅色模式">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="moon-icon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                </button>
+                <button id="settings-btn" class="icon-btn" title="偏好设置">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="editor-container">
+            <div class="editor-panel">
+                <div class="panel-toolbar">
+                    <span class="panel-title">源 JSON</span>
+                    <div class="panel-actions"><button class="action-btn" id="format-left-btn">格式化</button></div>
+                </div>
+                <div class="editor-wrapper">
+                    <!-- 内置一段供测试多级折叠和主题预览的 JSON -->
+                    <textarea id="json-input-left">{
+  "project": "JSON Comparator",
+  "version": "1.0.0",
+  "features": [
+    {
+      "name": "Local Fonts",
+      "loaded": true,
+      "fontFamily": "JetBrains Mono",
+      "status": "Awesome"
+    },
+    {
+      "name": "Custom Themes",
+      "options": ["VS Code", "One Dark", "GitHub"],
+      "animated": true
+    },
+    {
+      "name": "Advanced Folding",
+      "shortcuts": {
+        "level1": "Ctrl+Shift+1",
+        "level2": "Ctrl+Shift+2",
+        "level3": "Ctrl+Shift+3"
+      }
+    }
+  ],
+  "message": "试着按 Ctrl+Shift+1 折叠一层"
+}</textarea>
+                </div>
+            </div>
+
+            <div class="editor-panel">
+                <div class="panel-toolbar">
+                    <span class="panel-title">目标 JSON</span>
+                    <div class="panel-actions">
+                        <button class="action-btn" id="format-right-btn">格式化</button>
+                        <button class="primary-btn" id="compare-btn" style="margin-left: 10px; padding: 4px 16px;">开始比对</button>
+                    </div>
+                </div>
+                <div class="editor-wrapper">
+                    <textarea id="json-input-right"></textarea>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 偏好设置 Modal -->
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">偏好设置</div>
+            <div class="modal-body">
+                <div class="setting-item">
+                    <label>色彩主题 (Color Scheme)</label>
+                    <select id="scheme-select">
+                        <option value="vscode">VS Code 经典</option>
+                        <option value="onedark">One Dark 科技风</option>
+                        <option value="github">GitHub 极简</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label>代码字体 (Font Family)</label>
+                    <select id="font-select">
+                        <option value="'Local_JetBrains_Mono', monospace">JetBrains Mono (本地)</option>
+                        <option value="Consolas, monospace">Consolas (系统)</option>
+                        <option value="Menlo, monospace">Menlo (系统)</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label>折叠代码(1级) 快捷键</label>
+                    <input type="text" id="shortcut-lv1" class="shortcut-input" readonly value="Ctrl+Shift+1">
+                </div>
+                <div class="setting-item">
+                    <label>折叠代码(2级) 快捷键</label>
+                    <input type="text" id="shortcut-lv2" class="shortcut-input" readonly value="Ctrl+Shift+2">
+                </div>
+                <div class="setting-item">
+                    <label>展开全部代码 快捷键</label>
+                    <input type="text" id="shortcut-unfold" class="shortcut-input" readonly value="Ctrl+Shift+0">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="primary-btn" id="close-settings">完成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入 CodeMirror 核心与插件 -->
+    <script src="../js/lib/codemirror.js"></script>
+    <script src="../js/lib/javascript.js"></script>
+    <script src="../js/lib/foldcode.js"></script>
+    <script src="../js/lib/foldgutter.js"></script>
+    <script src="../js/lib/brace-fold.js"></script>
+    
+    <!-- 引入我们刚才编写的自定义脚本 -->
+    <script src="../js/json-script.js"></script>
+</body>
+</html>

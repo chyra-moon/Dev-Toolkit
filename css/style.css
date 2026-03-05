@@ -1,0 +1,601 @@
+:root {
+    --primary-color: #107c41; /* Excel Green */
+    --primary-light: #e6f7ef;
+    --border-color: #e0e0e0;
+    --bg-color: #f5f7fa;
+    --text-color: #333;
+    
+    /* Diff Colors */
+    --diff-add-bg: #dcfce7; /* Stronger Green */
+    --diff-add-color: #166534;
+    --diff-del-bg: #fee2e2; /* Stronger Red */
+    --diff-del-color: #991b1b;
+    --diff-mod-bg: #fecaca; /* Reddish for modification */
+    --diff-mod-text: #7f1d1d;
+    --match-bg: #f0fdf4; /* Light Green for Matches */
+    
+    /* Fullscreen Mode (White/Simple) */
+    --fs-bg: #ffffff;
+    --fs-text: #333333;
+    --fs-border: #e0e0e0;
+    --fs-header-bg: #f9fafb;
+}
+
+body {
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- Upload Section --- */
+#upload-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.5s ease;
+    padding: 20px;
+}
+
+#upload-section.collapsed {
+    display: none;
+}
+
+.upload-container {
+    display: flex;
+    gap: 40px;
+    margin-bottom: 30px;
+}
+
+.drop-zone {
+    width: 250px;
+    height: 180px;
+    border: 2px dashed #bbb;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--primary-color);
+    background: var(--primary-light);
+    transform: translateY(-2px);
+}
+
+.drop-zone .icon {
+    font-size: 40px;
+    margin-bottom: 15px;
+}
+
+.file-name {
+    margin-top: 10px;
+    font-weight: bold;
+    color: var(--primary-color);
+    word-break: break-all;
+    text-align: center;
+    padding: 0 10px;
+}
+
+#start-btn {
+    padding: 12px 40px;
+    font-size: 18px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.3s;
+    box-shadow: 0 4px 12px rgba(16, 124, 65, 0.3);
+}
+
+#start-btn:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* --- Result Section --- */
+#result-section {
+    display: none; /* JS toggles this */
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* --- Sheet Navigation --- */
+#normal-sheet-nav {
+    display: flex;
+    overflow-x: auto;
+    background: #fff;
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    scroll-behavior: smooth;
+    /* 隐藏默认滚动条，但保持可滚动 */
+    scrollbar-width: thin;
+    scrollbar-color: #ccc transparent;
+}
+#normal-sheet-nav::-webkit-scrollbar {
+    height: 3px;
+}
+#normal-sheet-nav::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+#normal-sheet-nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sheet-tab {
+    padding: 10px 16px;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+    font-size: 13px;
+}
+
+/* 红绿状态圆点 */
+.sheet-tab .status-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #d1d5db; /* 默认灰色：计算中 */
+    flex-shrink: 0;
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+}
+.sheet-tab .status-dot[data-status="same"] {
+    background: #22c55e; /* 绿色 */
+    box-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
+}
+.sheet-tab .status-dot[data-status="diff"] {
+    background: #ef4444; /* 红色 */
+    box-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
+}
+.sheet-tab .status-dot[data-status="pending"] {
+    background: #d1d5db; /* 灰色 */
+    animation: dot-pulse 1.5s ease-in-out infinite;
+}
+@keyframes dot-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+}
+
+.sheet-tab:hover {
+    background: var(--primary-light);
+    color: var(--primary-color);
+}
+
+.sheet-tab.active {
+    border-bottom-color: var(--primary-color);
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+/* --- Toolbar --- */
+.toolbar {
+    padding: 15px 20px;
+    background: #fdfdfd;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.toolbar h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.btn-icon {
+    padding: 8px 16px;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.btn-icon:hover {
+    background: #f0f0f0;
+    border-color: #bbb;
+}
+
+/* --- Comparison View --- */
+#comparison-view {
+    flex: 1;
+    display: flex;
+    overflow: hidden; /* Prevent body scroll */
+    padding: 10px;
+    gap: 10px;
+    background: #eef1f5;
+}
+
+.table-wrapper {
+    flex: 1;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+}
+
+.table-wrapper h3 {
+    margin: 0;
+    padding: 10px 15px;
+    background: #fafafa;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 14px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* layout modifier */
+#comparison-view.layout-tb {
+    flex-direction: column;
+}
+#comparison-view.layout-lr {
+    flex-direction: row;
+}
+
+/* --- Table Styles --- */
+#table-container-left, #table-container-right {
+    flex: 1;
+    overflow: auto; /* Internal scroll */
+    position: relative;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%; /* Force full width, column widths handled by auto */
+    font-size: 13px;
+    table-layout: auto; /* Let browser determine width based on content */
+    min-width: 100%;
+}
+
+th, td {
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    white-space: nowrap; /* Force single line */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* Remove fixed max-width to allow resizing */
+    max-width: 300px; /* Default max width, user can resize */
+    height: 30px; /* Fixed height for consistency */
+}
+
+th {
+    background: #f3f3f3;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    font-weight: 600;
+    text-align: left;
+    box-shadow: 0 1px 0 #ddd;
+    position: relative; /* For resizer positioning */
+    user-select: none; /* Prevent text selection while resizing */
+}
+
+.resizer {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 5px;
+    height: 100%;
+    cursor: col-resize;
+    user-select: none;
+    z-index: 20;
+}
+
+.resizer:hover, .resizing {
+    background-color: var(--primary-color);
+}
+
+/* Diff Highlighting */
+tr.diff-added {
+    background-color: var(--diff-add-bg);
+}
+tr.diff-added td {
+    color: var(--diff-add-color);
+}
+
+tr.diff-deleted {
+    background-color: var(--diff-del-bg);
+}
+tr.diff-deleted td {
+    color: var(--diff-del-color);
+    text-decoration: line-through;
+}
+
+/* Match Highlighting - new feature */
+tr.row-match td {
+    background-color: var(--match-bg); /* Very subtle green */
+    color: #333; /* Reset color just in case */
+    opacity: 0.7; /* Make matching rows slightly faded to emphasize diffs */
+}
+
+td.diff-modified {
+    background-color: var(--diff-mod-bg);
+    color: var(--diff-mod-text);
+    font-weight: bold;
+    border: 2px solid #e1ce00; /* border highlight */
+}
+
+/* Structural Diffs (Added Rows / Columns) */
+/* Use a special color (e.g., Orange/Yellow) for "New Structure" vs "Value Difference (Red)" */
+:root {
+    --struct-color-bg: #fff7ed; /* Light Orange */
+    --struct-color-fg: #c2410c; /* Dark Orange */
+    --struct-border: #fdba74;
+}
+
+tr.diff-struct-added td {
+    background-color: var(--struct-color-bg) !important;
+    color: var(--struct-color-fg);
+    border-top: 1px solid var(--struct-border);
+    border-bottom: 1px solid var(--struct-border);
+}
+
+tr.diff-struct-missing td {
+    /* The placeholder side */
+    background: repeating-linear-gradient(
+        45deg,
+        #fff7ed,
+        #fff7ed 10px,
+        #ffedd5 10px,
+        #ffedd5 20px
+    );
+     color: #9ca3af;
+}
+
+/* Added Columns */
+td.col-struct-added, th.col-struct-added {
+    background-color: var(--struct-color-bg);
+    border-left: 2px solid var(--struct-fg);
+    border-right: 2px solid var(--struct-fg);
+   color: var(--struct-color-fg);
+}
+
+td.col-struct-missing, th.col-struct-missing {
+    background-color: #f9fafb; /* Light Grey base */
+    background-image: repeating-linear-gradient(
+        45deg,
+        #fff7ed,
+        #fff7ed 10px,
+        #ffedd5 10px,
+        #ffedd5 20px
+    );
+    color: #9ca3af; 
+}
+
+/* --- Floating Nav (Light Theme) --- */
+#floating-nav {
+    display: none; /* hidden by default */
+    position: fixed;
+    width: 220px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    color: #333;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    border: 1px solid #e0e0e0;
+    z-index: 1000;
+    transition: width 0.3s, height 0.3s, border-radius 0.3s;
+    overflow: hidden;
+}
+
+#floating-nav.minimized {
+    width: 50px;
+    height: 50px;
+    border-radius: 25px;
+    cursor: pointer;
+    justify-content: center;
+    align-items: center;
+    background: white;
+    border: 1px solid #ccc;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+#floating-nav.minimized .nav-content,
+#floating-nav.minimized .nav-actions,
+#floating-nav.minimized .nav-title {
+    display: none;
+}
+
+#floating-nav.minimized .nav-header {
+    background: transparent;
+    padding: 0;
+    justify-content: center;
+    height: 100%;
+}
+#floating-nav.minimized .nav-close {
+    font-size: 30px;
+    line-height: 50px;
+    color: #107c41;
+}
+
+
+.nav-header {
+    padding: 12px 15px;
+    background: #f9f9f9;
+    border-bottom: 1px solid #eee;
+    cursor: move;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+.nav-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #107c41;
+}
+
+.nav-close {
+    cursor: pointer;
+    font-weight: bold;
+    padding: 0 5px;
+    color: #666;
+}
+
+.nav-content {
+    max-height: 250px;
+    overflow-y: auto;
+    padding: 5px 0;
+}
+
+.nav-item {
+    padding: 8px 15px;
+    cursor: pointer;
+    font-size: 13px;
+    border-left: 3px solid transparent;
+    color: #333;
+}
+.nav-item:hover { background: #f0f7f4; }
+.nav-item.active {
+    background: #e6ffec;
+    border-left-color: #107c41;
+    color: #107c41;
+    font-weight: bold;
+}
+
+.nav-actions {
+    display: flex;
+    border-top: 1px solid #eee;
+    background: #fff;
+}
+.nav-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #555;
+    padding: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-size: 14px;
+}
+.nav-btn:hover { background: #f5f5f5; color: #107c41; }
+
+
+/* --- Fullscreen Mode Overrides (Clean White) --- */
+body.fullscreen-mode {
+    background-color: white; /* Simple White */
+}
+
+/* Hide top navigation and toolbar in fullscreen as requested */
+body.fullscreen-mode #normal-sheet-nav,
+body.fullscreen-mode .toolbar {
+    display: none !important;
+}
+
+body.fullscreen-mode #comparison-view {
+    background-color: #f5f7fa; /* Light gray background */
+    padding: 0; 
+    gap: 2px; /* Close gap */
+}
+
+body.fullscreen-mode .table-wrapper {
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+/* Ensure data is still readable and styled like normal mode */
+body.fullscreen-mode th {
+    background-color: #f0f0f0;
+    color: #333;
+    border-color: #ddd;
+}
+
+body.fullscreen-mode td {
+    border-color: #ddd;
+    color: #333;
+}
+
+
+
+/* --- Modal --- */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal {
+    background: white;
+    padding: 24px;
+    border-radius: 12px;
+    width: 400px;
+    max-width: 90vw;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 12px;
+    color: var(--primary-color);
+}
+
+.modal-body {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    border: 1px solid #eee;
+    padding: 10px;
+    border-radius: 6px;
+}
+
+.col-option {
+    display: block;
+    margin-bottom: 8px;
+    padding: 6px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+.col-option:hover {
+    background: #f5f5f5;
+}
+
+.col-option input {
+    margin-right: 10px;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+}

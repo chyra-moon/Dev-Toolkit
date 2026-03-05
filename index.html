@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>开发者数据工具箱</title>
+    <style>
+        :root {
+            --primary: #107c41; /* Excel 绿 */
+            --secondary: #007acc; /* JSON 蓝 */
+            --bg: #f8fafc;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --card-bg: #ffffff;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            /* 轻微的渐变背景让层级更多样 */
+            background-image: radial-gradient(circle at 15% 50%, rgba(16, 124, 65, 0.04), transparent 25%),
+                              radial-gradient(circle at 85% 30%, rgba(0, 122, 204, 0.04), transparent 25%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-main);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            animation: fadeInDown 0.8s ease-out;
+        }
+        .header h1 {
+            font-size: 2.8rem;
+            font-weight: 800;
+            margin: 0 0 15px 0;
+            letter-spacing: -1px;
+            color: var(--text-main);
+        }
+        .header p {
+            font-size: 1.15rem;
+            color: var(--text-muted);
+            margin: 0;
+        }
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 35px;
+            width: 100%;
+            max-width: 850px;
+            padding: 0 20px;
+            box-sizing: border-box;
+            animation: fadeInUp 0.8s ease-out;
+        }
+        .tool-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 40px 30px;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            border: 1px solid rgba(0,0,0,0.05);
+            position: relative;
+            overflow: hidden;
+        }
+        .tool-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 5px;
+            background: transparent;
+            transition: background 0.3s;
+        }
+        .tool-card.excel:hover::before { background: var(--primary); }
+        .tool-card.json:hover::before { background: var(--secondary); }
+
+        .tool-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .icon-wrapper {
+            width: 80px;
+            height: 80px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            margin-bottom: 25px;
+            transition: transform 0.3s;
+        }
+        .tool-card:hover .icon-wrapper {
+            transform: scale(1.1);
+        }
+        .tool-card.excel .icon-wrapper {
+            background: #e6f7ef;
+            color: var(--primary);
+        }
+        .tool-card.json .icon-wrapper {
+            background: #e6f2ff;
+            color: var(--secondary);
+        }
+        .tool-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin: 0 0 12px 0;
+        }
+        .tool-desc {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            margin: 0;
+            line-height: 1.6;
+        }
+        .footer {
+            margin-top: 70px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            animation: fadeIn 1s ease-out;
+        }
+        
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>开发者数据工具箱</h1>
+        <p>轻量、纯本地、专业的格式化与离线差异比对工具</p>
+    </div>
+
+    <div class="tools-grid">
+        <!-- Excel 工具入口 -->
+        <a href="pages/compare.html" class="tool-card excel">
+            <div class="icon-wrapper">
+                📊
+            </div>
+            <h2 class="tool-title">Excel 比较器</h2>
+            <p class="tool-desc">
+                多 Sheet 支持，行列智能比对，自动主键识别，毫秒级比对结果与结构差异高亮。
+            </p>
+        </a>
+
+        <!-- JSON 工具入口 -->
+        <a href="pages/json.html" class="tool-card json">
+            <div class="icon-wrapper">
+                { }
+            </div>
+            <h2 class="tool-title">JSON 比对与格式化</h2>
+            <p class="tool-desc">
+                即将推出：高效的 JSON 文本美化、折叠、防乱码解析与树状结构层级差异对比功能。
+            </p>
+        </a>
+    </div>
+
+    <div class="footer">
+        本地离线处理，确保数据绝对隐私安全
+    </div>
+</body>
+</html>

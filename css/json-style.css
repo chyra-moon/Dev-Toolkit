@@ -1,0 +1,166 @@
+/* ================== 自定义本地字体接入 ================== */
+@font-face {
+    font-family: 'Local_JetBrains_Mono';
+    src: url('../fonts/JetBrainsMono-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+/* ==================== 1. VS Code 经典 (默认) ==================== */
+:root, :root[data-scheme="vscode"] {
+    --core-blue: #007acc; --core-blue-hover: #005a9e;
+    --bg-main: #f3f4f6; --bg-panel: #ffffff; --bg-toolbar: #f8fafc;
+    --border-soft: #cbd5e1; --text-primary: #1e293b; --text-secondary: #64748b;
+    --error-color: #ef4444; 
+    
+    --cm-bg: #ffffff; --cm-text: #333333; --cm-gutter-bg: #f8fafc; --cm-gutter-border: #cbd5e1; 
+    --cm-linenumber: #2b91af; --cm-string: #a31515; --cm-property: #0451a5; 
+    --cm-number: #098658; --cm-atom: #0000ff; --cm-bracket: #475569;
+}
+html[data-theme="dark"], html[data-scheme="vscode"][data-theme="dark"] {
+    --core-blue: #007acc; --core-blue-hover: #0ea5e9;
+    --bg-main: #111111; --bg-panel: #1e1e1e; --bg-toolbar: #2d2d2d;
+    --border-soft: #444444; --text-primary: #d4d4d4; --text-secondary: #858585;
+    
+    --cm-bg: #1e1e1e; --cm-text: #d4d4d4; --cm-gutter-bg: #1e1e1e; --cm-gutter-border: #333333; 
+    --cm-linenumber: #858585; --cm-string: #ce9178; --cm-property: #9cdcfe; 
+    --cm-number: #b5cea8; --cm-atom: #569cd6; --cm-bracket: #d4d4d4;
+}
+
+/* ==================== 2. One Dark 科技风 ==================== */
+:root[data-scheme="onedark"] {
+    --core-blue: #61afef; --core-blue-hover: #528bff;
+    --bg-main: #eaeaec; --bg-panel: #fafafa; --bg-toolbar: #f0f0f0;
+    --border-soft: #d3d4d5; --text-primary: #383a42; --text-secondary: #a0a1a7;
+    
+    --cm-bg: #fafafa; --cm-text: #383a42; --cm-gutter-bg: #fafafa; --cm-gutter-border: #e5e5e6; 
+    --cm-linenumber: #9d9d9f; --cm-string: #50a14f; --cm-property: #e45649; 
+    --cm-number: #986801; --cm-atom: #0184bc; --cm-bracket: #383a42;
+}
+html[data-scheme="onedark"][data-theme="dark"] {
+    --core-blue: #61afef; --core-blue-hover: #528bff;
+    --bg-main: #21252b; --bg-panel: #282c34; --bg-toolbar: #21252b;
+    --border-soft: #181a1f; --text-primary: #abb2bf; --text-secondary: #5c6370;
+    
+    --cm-bg: #282c34; --cm-text: #abb2bf; --cm-gutter-bg: #282c34; --cm-gutter-border: #4b5363; 
+    --cm-linenumber: #4b5363; --cm-string: #98c379; --cm-property: #e06c75; 
+    --cm-number: #d19a66; --cm-atom: #56b6c2; --cm-bracket: #abb2bf;
+}
+
+/* ==================== 3. GitHub 极简风 ==================== */
+:root[data-scheme="github"] {
+    --core-blue: #0969da; --core-blue-hover: #0550ae;
+    --bg-main: #f6f8fa; --bg-panel: #ffffff; --bg-toolbar: #f6f8fa;
+    --border-soft: #d0d7de; --text-primary: #24292f; --text-secondary: #57606a;
+    
+    --cm-bg: #ffffff; --cm-text: #24292f; --cm-gutter-bg: #ffffff; --cm-gutter-border: #f6f8fa; 
+    --cm-linenumber: #8c959f; --cm-string: #0a3069; --cm-property: #0550ae; 
+    --cm-number: #cf222e; --cm-atom: #116329; --cm-bracket: #24292f;
+}
+html[data-scheme="github"][data-theme="dark"] {
+    --core-blue: #58a6ff; --core-blue-hover: #79c0ff;
+    --bg-main: #010409; --bg-panel: #0d1117; --bg-toolbar: #161b22;
+    --border-soft: #30363d; --text-primary: #c9d1d9; --text-secondary: #8b949e;
+    
+    --cm-bg: #0d1117; --cm-text: #c9d1d9; --cm-gutter-bg: #0d1117; --cm-gutter-border: #161b22; 
+    --cm-linenumber: #484f58; --cm-string: #a5d6ff; --cm-property: #79c0ff; 
+    --cm-number: #ff7b72; --cm-atom: #ff7b72; --cm-bracket: #c9d1d9;
+}
+
+/* === Theme Transitions === */
+body, .app-header, .editor-panel, .panel-toolbar, .modal, .modal-header, .modal-body, .modal-footer, .CodeMirror, .CodeMirror-gutters {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* ================= 全局平滑过渡增强 ================= */
+.cm-s-default span.cm-property, .cm-s-default span.cm-string, .cm-s-default span.cm-number, .cm-s-default span.cm-atom {
+    transition: color 0.3s ease !important;
+}
+
+/* === 核心布局 === */
+body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background-color: var(--bg-main); color: var(--text-primary); }
+.app-layout { display: flex; flex-direction: column; height: 100vh; }
+
+.app-header { display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 64px; background: var(--bg-panel); border-bottom: 1px solid var(--border-soft); box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.app-header h1 { font-size: 1.25rem; font-weight: 600; margin: 0; }
+.back-btn { text-decoration: none; color: var(--text-secondary); font-size: 0.95rem; font-weight: 500; transition: color 0.2s; }
+.back-btn:hover { color: var(--core-blue); }
+
+.global-actions { display: flex; align-items: center; gap: 12px; }
+.icon-btn { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; padding: 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.icon-btn:hover { background-color: rgba(100, 116, 139, 0.1); color: var(--core-blue); transform: scale(1.05); }
+.icon-btn svg { width: 20px; height: 20px; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.icon-btn:active svg { transform: scale(0.85); }
+.primary-btn { background-color: var(--core-blue); color: #fff; border: none; padding: 8px 24px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+.primary-btn:hover { background-color: var(--core-blue-hover); }
+
+.editor-container { display: flex; flex: 1; overflow: hidden; padding: 24px; gap: 24px; }
+.editor-panel { flex: 1; display: flex; flex-direction: column; background: var(--bg-panel); border-radius: 10px; border: 1px solid var(--border-soft); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); overflow: hidden; }
+.panel-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background-color: var(--bg-toolbar); border-bottom: 1px solid var(--border-soft); }
+.panel-title { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); }
+.action-btn { background: transparent; border: 1px solid var(--border-soft); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; color: var(--text-primary); margin-left: 8px; transition: 0.2s; }
+.action-btn:hover { border-color: var(--core-blue); color: var(--core-blue); }
+.editor-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* === CodeMirror 深浅色自适应深度定制 (仿 VS Code) === */
+.CodeMirror {
+    height: 100% !important;
+    font-family: 'Local_JetBrains_Mono', 'JetBrains Mono', Consolas, monospace !important;
+    background-color: var(--cm-bg) !important;
+    color: var(--cm-text) !important;
+    border-color: var(--border-soft) !important;
+}
+
+.CodeMirror-gutters { background-color: var(--cm-gutter-bg) !important; border-right: 1px solid var(--cm-gutter-border) !important; }
+.CodeMirror-linenumber { color: var(--cm-linenumber) !important; padding-right: 12px !important; }
+.cm-s-default .cm-property { color: var(--cm-property) !important; }
+.cm-s-default .cm-string { color: var(--cm-string) !important; }
+.cm-s-default .cm-number { color: var(--cm-number) !important; }
+.cm-s-default .cm-atom { color: var(--cm-atom) !important; }
+.CodeMirror-line { color: var(--cm-bracket); }
+
+/* 覆盖原始折叠图标为 Chevron */
+.CodeMirror-foldgutter-open, .CodeMirror-foldgutter-folded { color: transparent !important; text-shadow: none !important; }
+.CodeMirror-foldgutter-open::after, .CodeMirror-foldgutter-folded::after {
+    content: ''; display: inline-block; width: 14px; height: 14px; background-color: var(--text-secondary);
+    mask-size: contain; -webkit-mask-size: contain; mask-repeat: no-repeat; -webkit-mask-repeat: no-repeat;
+    mask-position: center; -webkit-mask-position: center; transition: 0.2s ease; cursor: pointer;
+}
+.CodeMirror-foldgutter-open::after {
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="currentColor" d="M3.22 6.22a.75.75 0 011.06 0L8 9.94l3.72-3.72a.75.75 0 111.06 1.06l-4.25 4.25a.75.75 0 01-1.06 0L3.22 7.28a.75.75 0 010-1.06z"/></svg>');
+}
+.CodeMirror-foldgutter-folded::after {
+    -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="currentColor" d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z"/></svg>');
+}
+.CodeMirror-foldgutter-open:hover::after, .CodeMirror-foldgutter-folded:hover::after { background-color: var(--core-blue); }
+
+.error-input { border-color: var(--error-color) !important; background-color: rgba(239, 68, 68, 0.05) !important; }
+
+/* === 设置模态窗 === */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); display: none; justify-content: center; align-items: center; z-index: 1000; }
+.modal { background: var(--bg-panel); width: 360px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); animation: modal-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1); overflow: hidden; }
+.modal-header { padding: 18px 24px; border-bottom: 1px solid var(--border-soft); font-weight: 600; font-size: 16px; color: var(--text-primary); background: var(--bg-toolbar); }
+.modal-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.setting-item { display: flex; justify-content: space-between; align-items: center; }
+.setting-item label { font-size: 14px; color: var(--text-secondary); }
+.setting-item select { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border-soft); font-size: 14px; outline: none; cursor: pointer; background: var(--bg-panel); color: var(--text-primary); }
+.setting-item input[type='checkbox'] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--core-blue); }
+
+.shortcut-input {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-soft);
+    font-size: 13px;
+    outline: none;
+    cursor: pointer;
+    width: 140px;
+    text-align: center;
+    background: var(--bg-toolbar);
+    color: var(--core-blue);
+    font-family: 'Local_JetBrains_Mono', Consolas, monospace;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+.shortcut-input:focus { border-color: var(--core-blue); box-shadow: 0 0 0 3px rgba(0, 122, 204, 0.15); background: var(--bg-panel); }
+.modal-footer { padding: 16px 24px; border-top: 1px solid var(--border-soft); display: flex; justify-content: flex-end; }
+@keyframes modal-pop { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
