@@ -114,6 +114,12 @@ function bindShortcutInput(inputId, targetObjKey) {
         const code = e.code || "";
         const key = e.key.toUpperCase();
         
+        if (key === 'ESCAPE') {
+            // 仅仅取消录入状态，不修改原快捷键，不冒泡触发关闭窗口
+            input.blur();
+            return;
+        }
+
         if (key === 'BACKSPACE' || key === 'DELETE') {
             shortcuts[targetObjKey] = null;
             input.blur();
@@ -152,6 +158,23 @@ bindShortcutInput('shortcut-unfold', 'unfold');
 
 // 全局快捷键拦截器 (使用 capture 捕获阶段，防止被 CodeMirror 内部吞掉)
 window.addEventListener('keydown', (e) => {
+    // 1. 统一的 Escape 键退出逻辑
+    if (e.key === 'Escape') {
+        const modals = document.querySelectorAll('.modal-overlay');
+        let closedAny = false;
+        modals.forEach(m => {
+            if (window.getComputedStyle(m).display !== 'none') {
+                m.style.display = 'none';
+                closedAny = true;
+            }
+        });
+        if (closedAny) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+    }
+
     // 只有当焦点在设置面板的“输入框”里（正在录制按键）时，才不触发功能
     if (e.target.tagName === 'INPUT' && e.target.closest('#settings-modal')) return;
 
