@@ -142,7 +142,7 @@ body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, Bl
 .modal-header { padding: 18px 24px; border-bottom: 1px solid var(--border-soft); font-weight: 600; font-size: 16px; color: var(--text-primary); background: var(--bg-toolbar); }
 .modal-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
 .setting-item { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 4px; }
-.setting-item label { font-size: 14px; color: var(--text-secondary); flex: 1; }
+.setting-item label { font-size: 14px; color: var(--text-secondary); flex: 1; white-space: nowrap; }
 .setting-item select { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-soft); font-size: 13px; outline: none; cursor: pointer; background: var(--bg-panel); color: var(--text-primary); width: 220px; box-sizing: border-box; transition: border-color 0.2s; }
 .setting-item select:focus { border-color: var(--core-blue); }
 .setting-control { width: 220px; display: flex; align-items: center; gap: 10px; box-sizing: border-box; }
@@ -169,7 +169,7 @@ body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, Bl
 @keyframes modal-pop { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 
 /* === Settings Modal Overlay & Layout === */
-.large-modal { width: 550px; max-width: 90vw; }
+.large-modal { width: 560px; max-width: 90vw; }
 .modal-body.with-sidebar { padding: 0; display: flex; flex-direction: row; min-height: 300px; }
 
 .settings-sidebar {
