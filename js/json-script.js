@@ -81,19 +81,38 @@ fontSizeSlider.addEventListener('input', (e) => {
 // 快捷键捕获录入
 function bindShortcutInput(inputId, targetObjKey) {
     const input = document.getElementById(inputId);
+    
+    input.addEventListener('focus', () => {
+        input.value = '请按下组合键...';
+        input.style.color = '#ef4444'; // 红色提示录入中
+    });
+
+    input.addEventListener('blur', () => {
+        input.style.color = 'var(--core-blue)';
+        const def = shortcuts[targetObjKey];
+        if (def) {
+            let parts = [];
+            if (def.ctrl) parts.push('Ctrl');
+            if (def.shift) parts.push('Shift');
+            if (def.alt) parts.push('Alt');
+            parts.push(def.key === ' ' ? 'SPACE' : def.key);
+            input.value = parts.join('+');
+        } else {
+            input.value = '';
+        }
+    });
+
     input.addEventListener('keydown', (e) => {
         e.preventDefault();
         e.stopPropagation();
         
         const isCtrl = e.ctrlKey || e.metaKey;
         const isShift = e.shiftKey;
+        const isAlt = e.altKey;
         const key = e.key.toUpperCase();
         
-        // 忽略纯修饰键
-        if (key === 'CONTROL' || key === 'SHIFT' || key === 'ALT' || key === 'META') return;
         if (key === 'BACKSPACE' || key === 'DELETE') {
-            input.value = '';
-            shortcuts[targetObjKey] = null; // Clear
+            shortcuts[targetObjKey] = null;
             input.blur();
             return;
         }
@@ -101,11 +120,19 @@ function bindShortcutInput(inputId, targetObjKey) {
         let displayStr = [];
         if (isCtrl) displayStr.push('Ctrl');
         if (isShift) displayStr.push('Shift');
-        displayStr.push(key === ' ' ? 'SPACE' : key);
+        if (isAlt) displayStr.push('Alt');
         
+        // 如果只是按下了修饰键（还没按实体键）
+        const isModifier = ['CONTROL', 'SHIFT', 'ALT', 'META'].includes(key);
+        if (isModifier) {
+            input.value = displayStr.join('+') + '+...';
+            return;
+        }
+        
+        // 按下了实体键，完成录入
+        displayStr.push(key === ' ' ? 'SPACE' : key);
+        shortcuts[targetObjKey] = { ctrl: isCtrl, shift: isShift, alt: isAlt, key: key };
         input.value = displayStr.join('+');
-        shortcuts[targetObjKey] = { ctrl: isCtrl, shift: isShift, key: key === ' ' ? ' ' : key };
-        // 录入完释放焦点
         input.blur();
     });
 }
@@ -115,10 +142,19 @@ bindShortcutInput('shortcut-unfold', 'unfold');
 
 // 全局快捷键拦截器
 window.addEventListener('keydown', (e) => {
-    // 如果焦点在设置面板内的输入框/录入框上，不要触发编辑器快捷键
+    // 如果焦点在设置面板内，不要触发编辑器快捷键
     if (e.target.closest('#settings-modal')) return;
 
-    const checkShortcut = (def) => def && (e.ctrlKey || e.metaKey) === def.ctrl && e.shiftKey === def.shift && e.key.toUpperCase() === def.key;
+    const checkShortcut = (def) => {
+        if (!def) return false;
+        // 兼容 Shift 时 e.key 会变成特殊字符的情况，匹配 code 或 key
+        const isMatchKey = e.key.toUpperCase() === def.key || 
+                           (e.code && e.code.replace('Digit','').replace('Key','') === def.key);
+        return (e.ctrlKey || e.metaKey) === !!def.ctrl &&
+               e.shiftKey === !!def.shift &&
+               e.altKey === !!def.alt &&
+               isMatchKey;
+    };
     
     if (checkShortcut(shortcuts.lv1)) {
         e.preventDefault(); 
