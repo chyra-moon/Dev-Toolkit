@@ -95,7 +95,7 @@ function bindShortcutInput(inputId, targetObjKey) {
             if (def.ctrl) parts.push('Ctrl');
             if (def.shift) parts.push('Shift');
             if (def.alt) parts.push('Alt');
-            parts.push(def.key === ' ' ? 'SPACE' : def.key);
+            parts.push(def.displayKey || def.key);
             input.value = parts.join('+');
         } else {
             input.value = '';
@@ -104,11 +104,14 @@ function bindShortcutInput(inputId, targetObjKey) {
 
     input.addEventListener('keydown', (e) => {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopPropagation(); // 阻止冒泡
         
         const isCtrl = e.ctrlKey || e.metaKey;
         const isShift = e.shiftKey;
         const isAlt = e.altKey;
+        
+        // 抓取按键的物理物理编码（忽略大小写和Shift影响）
+        const code = e.code || "";
         const key = e.key.toUpperCase();
         
         if (key === 'BACKSPACE' || key === 'DELETE') {
@@ -123,15 +126,22 @@ function bindShortcutInput(inputId, targetObjKey) {
         if (isAlt) displayStr.push('Alt');
         
         // 如果只是按下了修饰键（还没按实体键）
-        const isModifier = ['CONTROL', 'SHIFT', 'ALT', 'META'].includes(key);
+        const isModifier = ['ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight'].includes(code) || ['CONTROL', 'SHIFT', 'ALT', 'META'].includes(key);
         if (isModifier) {
             input.value = displayStr.join('+') + '+...';
             return;
         }
         
-        // 按下了实体键，完成录入
-        displayStr.push(key === ' ' ? 'SPACE' : key);
-        shortcuts[targetObjKey] = { ctrl: isCtrl, shift: isShift, alt: isAlt, key: key };
+        // 格式化按键的显示名
+        let displayKey = key;
+        if (code.startsWith('Key')) displayKey = code.replace('Key', '');
+        else if (code.startsWith('Digit')) displayKey = code.replace('Digit', '');
+        else if (key === ' ') displayKey = 'SPACE';
+
+        displayStr.push(displayKey);
+        
+        // 保存按键的组合状态、code(用来匹配物理按键)和用于显示的displayKey
+        shortcuts[targetObjKey] = { ctrl: isCtrl, shift: isShift, alt: isAlt, code: code, key: key, displayKey: displayKey };
         input.value = displayStr.join('+');
         input.blur();
     });
@@ -140,16 +150,23 @@ bindShortcutInput('shortcut-lv1', 'lv1');
 bindShortcutInput('shortcut-lv2', 'lv2');
 bindShortcutInput('shortcut-unfold', 'unfold');
 
-// 全局快捷键拦截器
+// 全局快捷键拦截器 (使用 capture 捕获阶段，防止被 CodeMirror 内部吞掉)
 window.addEventListener('keydown', (e) => {
     // 如果焦点在设置面板内，不要触发编辑器快捷键
     if (e.target.closest('#settings-modal')) return;
 
     const checkShortcut = (def) => {
         if (!def) return false;
-        // 兼容 Shift 时 e.key 会变成特殊字符的情况，匹配 code 或 key
-        const isMatchKey = e.key.toUpperCase() === def.key || 
-                           (e.code && e.code.replace('Digit','').replace('Key','') === def.key);
+        
+        // 匹配逻辑：优先匹配物理 code，如果不支持则使用 key 退掉
+        let isMatchKey = false;
+        if (def.code && e.code) {
+            isMatchKey = (e.code === def.code);
+        } else {
+            isMatchKey = (e.key.toUpperCase() === def.key) || 
+                         (e.code && e.code.replace('Digit','').replace('Key','') === def.key);
+        }
+
         return (e.ctrlKey || e.metaKey) === !!def.ctrl &&
                e.shiftKey === !!def.shift &&
                e.altKey === !!def.alt &&
@@ -158,15 +175,18 @@ window.addEventListener('keydown', (e) => {
     
     if (checkShortcut(shortcuts.lv1)) {
         e.preventDefault(); 
+        e.stopPropagation();
         foldToLevel(editorLeft, 1); foldToLevel(editorRight, 1);
     } else if (checkShortcut(shortcuts.lv2)) {
         e.preventDefault(); 
+        e.stopPropagation();
         foldToLevel(editorLeft, 2); foldToLevel(editorRight, 2);
     } else if (checkShortcut(shortcuts.unfold)) {
         e.preventDefault();
+        e.stopPropagation();
         unfoldAll(editorLeft); unfoldAll(editorRight);
     }
-});
+}, true); // <- 关键点：设置为 true，在捕获阶段拦截事件
 
 function unfoldAll(cm) {
     cm.operation(() => {
