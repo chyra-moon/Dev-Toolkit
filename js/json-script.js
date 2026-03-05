@@ -152,25 +152,27 @@ bindShortcutInput('shortcut-unfold', 'unfold');
 
 // 全局快捷键拦截器 (使用 capture 捕获阶段，防止被 CodeMirror 内部吞掉)
 window.addEventListener('keydown', (e) => {
-    // 如果焦点在设置面板内，不要触发编辑器快捷键
-    if (e.target.closest('#settings-modal')) return;
+    // 只有当焦点在设置面板的“输入框”里（正在录制按键）时，才不触发功能
+    if (e.target.tagName === 'INPUT' && e.target.closest('#settings-modal')) return;
 
     const checkShortcut = (def) => {
         if (!def) return false;
         
-        // 匹配逻辑：优先匹配物理 code，如果不支持则使用 key 退掉
         let isMatchKey = false;
+        // 核心匹配：优先匹配物理按键 code，若无则匹配 key (容错)
         if (def.code && e.code) {
             isMatchKey = (e.code === def.code);
         } else {
-            isMatchKey = (e.key.toUpperCase() === def.key) || 
-                         (e.code && e.code.replace('Digit','').replace('Key','') === def.key);
+            isMatchKey = (e.key.toUpperCase() === (def.key || "").toUpperCase()) || 
+                         (e.code && def.key && e.code.replace('Digit','').replace('Key','') === def.key);
         }
 
-        return (e.ctrlKey || e.metaKey) === !!def.ctrl &&
-               e.shiftKey === !!def.shift &&
-               e.altKey === !!def.alt &&
-               isMatchKey;
+        // 严格比对修饰键是否一致
+        const ctrlMatch = (e.ctrlKey || e.metaKey) === !!def.ctrl;
+        const shiftMatch = e.shiftKey === !!def.shift;
+        const altMatch = e.altKey === !!def.alt;
+
+        return ctrlMatch && shiftMatch && altMatch && isMatchKey;
     };
     
     if (checkShortcut(shortcuts.lv1)) {
