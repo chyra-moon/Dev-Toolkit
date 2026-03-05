@@ -49,6 +49,35 @@ fontSelect.addEventListener('change', (e) => {
 settingsBtn.addEventListener('click', () => { settingsModal.style.display = 'flex'; });
 closeSettingsBtn.addEventListener('click', () => { settingsModal.style.display = 'none'; });
 
+// Tab 切换逻辑
+const tabBtns = document.querySelectorAll('.tab-btn');
+const settingsPanes = document.querySelectorAll('.settings-pane');
+tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        // 移除所有 active
+        tabBtns.forEach(b => b.classList.remove('active'));
+        settingsPanes.forEach(p => p.classList.remove('active'));
+        
+        // 添加当前 active
+        btn.classList.add('active');
+        const targetId = btn.getAttribute('data-target');
+        document.getElementById(targetId).classList.add('active');
+    });
+});
+
+// 字体大小调整逻辑
+const fontSizeSlider = document.getElementById('font-size-slider');
+const fontSizeVal = document.getElementById('font-size-val');
+fontSizeSlider.addEventListener('input', (e) => {
+    const size = e.target.value;
+    fontSizeVal.textContent = size + 'px';
+    document.querySelectorAll('.CodeMirror').forEach(el => {
+        el.style.fontSize = size + 'px';
+    });
+    editorLeft.refresh();
+    editorRight.refresh();
+});
+
 // 快捷键捕获录入
 function bindShortcutInput(inputId, targetObjKey) {
     const input = document.getElementById(inputId);
@@ -62,14 +91,19 @@ function bindShortcutInput(inputId, targetObjKey) {
         
         // 忽略纯修饰键
         if (key === 'CONTROL' || key === 'SHIFT' || key === 'ALT' || key === 'META') return;
+        if (key === 'BACKSPACE' || key === 'DELETE') {
+            input.value = '';
+            shortcuts[targetObjKey] = null; // Clear
+            return;
+        }
         
         let displayStr = [];
         if (isCtrl) displayStr.push('Ctrl');
         if (isShift) displayStr.push('Shift');
-        displayStr.push(key);
+        displayStr.push(key === ' ' ? 'SPACE' : key);
         
         input.value = displayStr.join('+');
-        shortcuts[targetObjKey] = { ctrl: isCtrl, shift: isShift, key: key };
+        shortcuts[targetObjKey] = { ctrl: isCtrl, shift: isShift, key: key === ' ' ? ' ' : key };
     });
 }
 bindShortcutInput('shortcut-lv1', 'lv1');
@@ -78,7 +112,10 @@ bindShortcutInput('shortcut-unfold', 'unfold');
 
 // 全局快捷键拦截器
 window.addEventListener('keydown', (e) => {
-    const checkShortcut = (def) => (e.ctrlKey || e.metaKey) === def.ctrl && e.shiftKey === def.shift && e.key.toUpperCase() === def.key;
+    // 如果焦点在输入框/录入框上，不要触发折叠快捷键
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    const checkShortcut = (def) => def && (e.ctrlKey || e.metaKey) === def.ctrl && e.shiftKey === def.shift && e.key.toUpperCase() === def.key;
     
     if (checkShortcut(shortcuts.lv1)) {
         e.preventDefault(); 

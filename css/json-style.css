@@ -164,3 +164,65 @@ body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, Bl
 .shortcut-input:focus { border-color: var(--core-blue); box-shadow: 0 0 0 3px rgba(0, 122, 204, 0.15); background: var(--bg-panel); }
 .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border-soft); display: flex; justify-content: flex-end; }
 @keyframes modal-pop { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+/* === Settings Modal Overlay & Layout === */
+.large-modal { width: 550px; max-width: 90vw; }
+.modal-body.with-sidebar { padding: 0; display: flex; flex-direction: row; min-height: 300px; }
+
+.settings-sidebar {
+    width: 140px;
+    background: var(--bg-toolbar);
+    border-right: 1px solid var(--border-soft);
+    display: flex;
+    flex-direction: column;
+}
+.tab-btn {
+    padding: 14px 16px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+}
+.tab-btn:hover { background: var(--bg-panel); color: var(--text-primary); }
+.tab-btn.active {
+    background: var(--bg-panel);
+    color: var(--core-blue);
+    font-weight: 600;
+    border-left: 3px solid var(--core-blue);
+}
+
+.settings-content {
+    flex: 1;
+    padding: 24px;
+    background: var(--bg-panel);
+}
+.settings-pane {
+    display: none;
+    flex-direction: column;
+    gap: 16px;
+}
+.settings-pane.active {
+    display: flex;
+    animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+#font-size-slider {
+    -webkit-appearance: none;
+    height: 4px;
+    background: var(--border-soft);
+    border-radius: 2px;
+    outline: none;
+}
+#font-size-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--core-blue);
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
