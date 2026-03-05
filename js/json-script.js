@@ -90,6 +90,21 @@ if (tabSizeSlider) {
         tabSizeVal.textContent = size;
         editorLeft.setOption('tabSize', size);
         editorRight.setOption('tabSize', size);
+        
+        // 实时重新格式化现有的 JSON 数据
+        const silentFormat = (editor) => {
+            try {
+                const val = editor.getValue();
+                if (!val.trim()) return;
+                const obj = JSON.parse(val);
+                // 使用新的缩进层级重新生成字符串
+                editor.setValue(JSON.stringify(obj, null, currentTabSize));
+            } catch(err) {
+                // 如果当前编辑器里的 JSON 格式不合法，就不强制刷新它，也不弹窗报错打扰用户
+            }
+        };
+        silentFormat(editorLeft);
+        silentFormat(editorRight);
     });
 }
 
