@@ -117,3 +117,43 @@ function foldToLevel(cm, level) {
         }
     });
 }
+
+// === 工具栏按钮功能实现 ===
+
+// 格式化功能
+function formatJSON(editor) {
+    try {
+        const val = editor.getValue();
+        if (!val.trim()) return;
+        const obj = JSON.parse(val);
+        editor.setValue(JSON.stringify(obj, null, 2));
+    } catch (e) {
+        alert('格式化失败，请检查 JSON 语法是否正确\n' + e.message);
+    }
+}
+
+// 复制功能
+function copyContent(editor) {
+    const val = editor.getValue();
+    navigator.clipboard.writeText(val).then(() => {
+        const btn = document.activeElement;
+        const originalTitle = btn.title || '复制';
+        btn.title = '稍等，复制成功!';
+        setTimeout(() => btn.title = originalTitle, 2000);
+    }).catch(() => {
+        alert('复制失败，请尝试手动复制');
+    });
+}
+
+// 绑定左侧面板按钮
+document.getElementById('clear-left').addEventListener('click', () => editorLeft.setValue(''));
+document.getElementById('format-left').addEventListener('click', () => formatJSON(editorLeft));
+document.getElementById('copy-left').addEventListener('click', () => copyContent(editorLeft));
+document.getElementById('search-left').addEventListener('click', () => editorLeft.execCommand('find'));
+
+// 绑定右侧面板按钮
+document.getElementById('clear-right').addEventListener('click', () => editorRight.setValue(''));
+document.getElementById('format-right').addEventListener('click', () => formatJSON(editorRight));
+document.getElementById('copy-right').addEventListener('click', () => copyContent(editorRight));
+document.getElementById('search-right').addEventListener('click', () => editorRight.execCommand('find'));
+
