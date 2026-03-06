@@ -1,0 +1,96 @@
+﻿
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>主题预览 - 截图完美复刻版</title>
+    <style>
+        body { 
+            margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background-color: #f6f8fa; /* 截图里极为干净的灰白底色 */
+        }
+        .controls { background: #333; color: white; padding: 10px; text-align: center; font-size: 14px; }
+        .mock-app { height: calc(100vh - 40px); display: flex; flex-direction: column; }
+        
+        /* 完全透明融入背景的顶部 */
+        .mock-header {
+            height: 80px;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 40px; color: #0f172a;
+        }
+
+        /* 模拟顶部左侧返回 */
+        .header-left { font-size: 14px; color: #475569; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+        
+        /* 模拟顶部居中标题 */
+        .header-center { font-size: 18px; font-weight: 600; font-family: monospace; position: absolute; left: 50%; transform: translateX(-50%); }
+
+        /* 模拟顶部右侧按钮 */
+        .header-right { display: flex; gap: 16px; align-items: center; }
+        .icon-btn-top { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #e2e8f0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .primary-btn { background: #2563eb; color: white; border: none; padding: 8px 20px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }
+
+        .mock-workspace {
+            flex: 1; padding: 0 40px 40px 40px; display: flex;
+            gap: 32px; /* Screenshot 里的卡片间距挺大的 */
+            box-sizing: border-box;
+        }
+
+        .mock-panel {
+            flex: 1; background-color: #ffffff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 6px rgba(0,0,0,0.02); /* 极其克制的阴影 */
+            border-radius: 8px; /* 截图里的圆角并不夸张 */
+            border: 1px solid #e2e8f0; /* 截图里卡片是有极细的浅灰色描边的 */
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+
+        /* 卡片内部标题栏 */
+        .mock-panel-header {
+            padding: 12px 20px; border-bottom: 1px solid #f1f5f9; 
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .panel-title { font-weight: 600; color: #1e293b; font-size: 15px; }
+        .panel-actions { display: flex; gap: 12px; color: #64748b; font-size: 16px; font-weight: bold; cursor: pointer; }
+
+        /* 左侧内容区带行号 */
+        .mock-editor { flex: 1; display: flex; font-family: monospace; font-size: 14px; line-height: 1.6; }
+        .gutter { width: 40px; background: #fafafa; border-right: 1px solid #f1f5f9; color: #3b82f6; text-align: right; padding: 16px 12px; box-sizing: border-box; }
+        .code-area { padding: 16px; color: #b91c1c; flex: 1; }
+    </style>
+</head>
+<body>
+    <div class="controls">这版几乎一比一复刻了您发的截图排版</div>
+    <div class="mock-app">
+        <div class="mock-header">
+            <div class="header-left"> 返回工具箱</div>
+            <div class="header-center">JSON 对比与格式化</div>
+            <div class="header-right">
+                <button class="icon-btn-top">🌙</button>
+                <button class="primary-btn">开始比对</button>
+            </div>
+        </div>
+        <div class="mock-workspace">
+            <div class="mock-panel">
+                <div class="mock-panel-header">
+                    <span class="panel-title">源 JSON</span>
+                    <span class="panel-actions">🗑 &lt;&gt; 🔍</span>
+                </div>
+                <div class="mock-editor">
+                    <div class="gutter">1<br>2<br>3<br>4</div>
+                    <div class="code-area">{<br>&nbsp;&nbsp;"project": "JSON Comparator",<br>&nbsp;&nbsp;"version": "1.0.0"<br>}</div>
+                </div>
+            </div>
+            <div class="mock-panel">
+                <div class="mock-panel-header">
+                    <span class="panel-title">目标 JSON</span>
+                    <span class="panel-actions">🗑 &lt;&gt; 🔍</span>
+                </div>
+                <div class="mock-editor">
+                    <div class="gutter">1</div>
+                    <div class="code-area" style="color:#333;">1</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

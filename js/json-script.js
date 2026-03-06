@@ -1,5 +1,32 @@
+// === 本地设置持久化 (localStorage) ===
+const STORAGE_KEY = 'json_diff_settings';
+
+const defaultSettings = {
+    theme: 'light',
+    scheme: 'vscode',
+    font: "'Local_JetBrains_Mono', 'JetBrains Mono', Consolas, monospace",
+    fontSize: 14,
+    tabSize: 4,
+    shortcuts: {
+        lv1: { ctrl: false, shift: false, alt: true, code: "Digit1", key: "1", displayKey: "1" },
+        lv2: { ctrl: false, shift: false, alt: true, code: "Digit2", key: "2", displayKey: "2" },
+        unfold: { ctrl: false, shift: false, alt: true, code: "Digit3", key: "3", displayKey: "3" }
+    }
+};
+
+let userSettings = { ...defaultSettings };
+try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) userSettings = { ...defaultSettings, ...JSON.parse(saved) };
+} catch(e) {}
+
+function saveSettings() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(userSettings));
+}
+
 // === CodeMirror 初始实例 ===
-let currentTabSize = 4;
+let currentTabSize = userSettings.tabSize;
+let shortcuts = userSettings.shortcuts;
 
 const cmOptions = {
     mode: "application/json",
@@ -13,13 +40,6 @@ const cmOptions = {
 const editorLeft = CodeMirror.fromTextArea(document.getElementById("json-input-left"), cmOptions);
 const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-right"), cmOptions);
 
-// == 快捷键默认设置 ===
-let shortcuts = {
-    lv1: { ctrl: false, shift: false, alt: true, code: "Digit1", key: "1", displayKey: "1" },
-    lv2: { ctrl: false, shift: false, alt: true, code: "Digit2", key: "2", displayKey: "2" },
-    unfold: { ctrl: false, shift: false, alt: true, code: "Digit3", key: "3", displayKey: "3" }
-};
-
 // === 设置逻辑与主题切换 ===
 const htmlEl = document.documentElement;
 const themeToggleBtn = document.getElementById('theme-toggle');
@@ -29,13 +49,34 @@ const settingsBtn = document.getElementById('settings-btn');
 const settingsModal = document.getElementById('settings-modal');
 const closeSettingsBtn = document.getElementById('close-settings');
 
+// 初始化应用设置
+function applySettings() {
+    htmlEl.setAttribute('data-theme', userSettings.theme);
+    htmlEl.setAttribute('data-scheme', userSettings.scheme);
+    
+    if (schemeSelect) schemeSelect.value = userSettings.scheme;
+    if (fontSelect) fontSelect.value = userSettings.font;
+    
+    document.querySelectorAll('.CodeMirror').forEach(el => {
+        el.style.fontFamily = userSettings.font;
+        el.style.fontSize = userSettings.fontSize + 'px';
+    });
+}
+applySettings();
+
 themeToggleBtn.addEventListener('click', () => {
     const isDark = htmlEl.getAttribute('data-theme') === 'dark';
-    htmlEl.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    const newTheme = isDark ? 'light' : 'dark';
+    htmlEl.setAttribute('data-theme', newTheme);
+    userSettings.theme = newTheme;
+    saveSettings();
 });
 
 schemeSelect.addEventListener('change', (e) => {
-    htmlEl.setAttribute('data-scheme', e.target.value);
+    const newScheme = e.target.value;
+    htmlEl.setAttribute('data-scheme', newScheme);
+    userSettings.scheme = newScheme;
+    saveSettings();
 });
 
 fontSelect.addEventListener('change', (e) => {
@@ -43,6 +84,8 @@ fontSelect.addEventListener('change', (e) => {
     document.querySelectorAll('.CodeMirror').forEach(el => {
         el.style.fontFamily = font;
     });
+    userSettings.font = font;
+    saveSettings();
     // 刷新防止行号错位
     editorLeft.refresh();
     editorRight.refresh();
@@ -70,12 +113,20 @@ tabBtns.forEach(btn => {
 // 字体大小调整逻辑
 const fontSizeSlider = document.getElementById('font-size-slider');
 const fontSizeVal = document.getElementById('font-size-val');
+
+if (fontSizeSlider) {
+    fontSizeSlider.value = userSettings.fontSize;
+    fontSizeVal.textContent = userSettings.fontSize + 'px';
+}
+
 fontSizeSlider.addEventListener('input', (e) => {
     const size = e.target.value;
     fontSizeVal.textContent = size + 'px';
     document.querySelectorAll('.CodeMirror').forEach(el => {
         el.style.fontSize = size + 'px';
     });
+    userSettings.fontSize = parseInt(size);
+    saveSettings();
     editorLeft.refresh();
     editorRight.refresh();
 });
@@ -83,13 +134,20 @@ fontSizeSlider.addEventListener('input', (e) => {
 // 缩进大小调整逻辑
 const tabSizeSlider = document.getElementById('tab-size-slider');
 const tabSizeVal = document.getElementById('tab-size-val');
+
 if (tabSizeSlider) {
+    tabSizeSlider.value = userSettings.tabSize;
+    tabSizeVal.textContent = userSettings.tabSize;
+    
     tabSizeSlider.addEventListener('input', (e) => {
         const size = parseInt(e.target.value);
         currentTabSize = size;
         tabSizeVal.textContent = size;
         editorLeft.setOption('tabSize', size);
         editorRight.setOption('tabSize', size);
+        
+        userSettings.tabSize = size;
+        saveSettings();
         
         // 实时重新格式化现有的 JSON 数据
         const silentFormat = (editor) => {
@@ -152,6 +210,8 @@ function bindShortcutInput(inputId, targetObjKey) {
 
         if (key === 'BACKSPACE' || key === 'DELETE') {
             shortcuts[targetObjKey] = null;
+            userSettings.shortcuts[targetObjKey] = null;
+            saveSettings();
             input.blur();
             return;
         }
@@ -177,10 +237,17 @@ function bindShortcutInput(inputId, targetObjKey) {
         displayStr.push(displayKey);
         
         // 保存按键的组合状态、code(用来匹配物理按键)和用于显示的displayKey
-        shortcuts[targetObjKey] = { ctrl: isCtrl, shift: isShift, alt: isAlt, code: code, key: key, displayKey: displayKey };
+        const newShortcut = { ctrl: isCtrl, shift: isShift, alt: isAlt, code: code, key: key, displayKey: displayKey };
+        shortcuts[targetObjKey] = newShortcut;
+        userSettings.shortcuts[targetObjKey] = newShortcut;
+        saveSettings();
+        
         input.value = displayStr.join('+');
         input.blur();
     });
+    
+    // 初始化时，如果已有值则触发一次blur来回显
+    if (input) input.dispatchEvent(new Event('blur'));
 }
 bindShortcutInput('shortcut-lv1', 'lv1');
 bindShortcutInput('shortcut-lv2', 'lv2');

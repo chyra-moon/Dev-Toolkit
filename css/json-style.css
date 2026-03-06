@@ -9,7 +9,7 @@
 /* ==================== 1. VS Code 经典 (默认) ==================== */
 :root, :root[data-scheme="vscode"] {
     --core-blue: #007acc; --core-blue-hover: #005a9e;
-    --bg-main: #f3f4f6; --bg-panel: #ffffff; --bg-toolbar: #f8fafc;
+    --bg-main: #f6f8fa; --bg-panel: #ffffff; --bg-toolbar: #f8fafc;
     --border-soft: #cbd5e1; --text-primary: #1e293b; --text-secondary: #64748b;
     --error-color: #ef4444; 
     
@@ -81,23 +81,33 @@ body, .app-header, .editor-panel, .panel-toolbar, .modal, .modal-header, .modal-
 body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background-color: var(--bg-main); color: var(--text-primary); }
 .app-layout { display: flex; flex-direction: column; height: 100vh; }
 
-.app-header { display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 64px; background: var(--bg-panel); border-bottom: 1px solid var(--border-soft); box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-.app-header h1 { font-size: 1.25rem; font-weight: 600; margin: 0; }
-.back-btn { text-decoration: none; color: var(--text-secondary); font-size: 0.95rem; font-weight: 500; transition: color 0.2s; }
+.app-header { display: flex; align-items: center; justify-content: space-between; padding: 0 32px; height: 72px; background: transparent; border-bottom: none; box-shadow: none; position: relative; }
+.app-header h1 { font-family: 'Local_JetBrains_Mono', Consolas, monospace; font-size: 1.35rem; font-weight: 700; margin: 0; position: absolute; left: 50%; transform: translateX(-50%); letter-spacing: 1px; color: var(--text-primary); line-height: 1; transition: color 0.3s ease; }
+.back-btn { text-decoration: none; color: var(--text-secondary); font-size: 1.05rem; font-weight: 500; transition: color 0.2s; display: flex; align-items: center; gap: 4px; }
 .back-btn:hover { color: var(--core-blue); }
 
-.global-actions { display: flex; align-items: center; gap: 12px; }
-.icon-btn { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; padding: 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.global-actions { display: flex; align-items: center; gap: 16px; }
+.icon-btn { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; padding: 8px; border-radius: 6px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
 .icon-btn:hover { background-color: rgba(100, 116, 139, 0.1); color: var(--core-blue); transform: scale(1.05); }
-.icon-btn svg { width: 20px; height: 20px; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.icon-btn svg { width: 22px; height: 22px; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 .icon-btn:active svg { transform: scale(0.85); }
-.primary-btn { background-color: var(--core-blue); color: #fff; border: none; padding: 8px 24px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
-.primary-btn:hover { background-color: var(--core-blue-hover); }
 
-.editor-container { display: flex; flex: 1; overflow: hidden; padding: 24px; gap: 24px; }
+/* --- 昼夜切换极简丝滑动画 --- */
+.theme-toggle-btn { position: relative; width: 38px; height: 38px; }
+.theme-toggle-btn svg { position: absolute; top: 0; left: 0; right: 0; bottom: 0; margin: auto; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+html[data-theme="light"] .sun-icon { opacity: 0; transform: rotate(-90deg) scale(0.5); }
+html[data-theme="light"] .moon-icon { opacity: 1; transform: rotate(0) scale(1); }
+html[data-theme="dark"] .sun-icon { opacity: 1; transform: rotate(0) scale(1); }
+html[data-theme="dark"] .moon-icon { opacity: 0; transform: rotate(90deg) scale(0.5); }
+
+.primary-btn { background-color: #3b82f6; color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 600; font-size: 1rem; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.15); }
+.primary-btn:hover { background-color: #2563eb; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(59, 130, 246, 0.25); }
+.primary-btn:active { transform: translateY(0); box-shadow: 0 1px 2px rgba(59, 130, 246, 0.2); }
+
+.editor-container { display: flex; flex: 1; overflow: hidden; padding: 12px 32px 32px 32px; gap: 32px; }
 .editor-panel { flex: 1; display: flex; flex-direction: column; background: var(--bg-panel); border-radius: 10px; border: 1px solid var(--border-soft); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); overflow: hidden; }
 .panel-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background-color: var(--bg-toolbar); border-bottom: 1px solid var(--border-soft); }
-.panel-title { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); }
+.panel-title { font-family: 'Local_JetBrains_Mono', Consolas, monospace; font-weight: 600; font-size: 0.95rem; letter-spacing: 0.5px; color: var(--text-primary); transition: color 0.3s ease; }
 .action-btn { background: transparent; border: 1px solid var(--border-soft); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; color: var(--text-primary); margin-left: 8px; transition: 0.2s; }
 .action-btn:hover { border-color: var(--core-blue); color: var(--core-blue); }
 .editor-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
