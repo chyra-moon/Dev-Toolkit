@@ -612,24 +612,309 @@ function deepCompareObjects(oldObj, newObj) {
 }
 
 function deepCompareArrays(oldArr, newArr) {
-    const maxLen = Math.max(oldArr.length, newArr.length);
-    const children = [];
-    let hasChanges = false;
+    // 智能配对：主键检测 → 内容哈希精确消除 → 相似度贪心配对 → 兜底增删
+    var pairs = matchArrayElements(oldArr, newArr);
+    var children = [];
+    var hasChanges = false;
 
-    for (let i = 0; i < maxLen; i++) {
-        if (i >= oldArr.length) {
-            children.push({ status: 'added', newValue: newArr[i] });
+    for (var i = 0; i < pairs.length; i++) {
+        var p = pairs[i];
+        var child;
+        if (p.type === 'unchanged') {
+            child = { status: 'unchanged' };
+            child._oldVal = p.oldVal;
+            child._newVal = p.newVal;
+        } else if (p.type === 'added') {
+            child = { status: 'added', newValue: p.newVal };
+            child._newVal = p.newVal;
             hasChanges = true;
-        } else if (i >= newArr.length) {
-            children.push({ status: 'removed', oldValue: oldArr[i] });
+        } else if (p.type === 'removed') {
+            child = { status: 'removed', oldValue: p.oldVal };
+            child._oldVal = p.oldVal;
             hasChanges = true;
         } else {
-            const child = deepCompare(oldArr[i], newArr[i]);
-            children.push(child);
+            // matched — 递归比较
+            child = deepCompare(p.oldVal, p.newVal);
+            child._oldVal = p.oldVal;
+            child._newVal = p.newVal;
             if (child.status !== 'unchanged') hasChanges = true;
         }
+        children.push(child);
     }
-    return { type: 'array', status: hasChanges ? 'modified' : 'unchanged', children };
+    return { type: 'array', status: hasChanges ? 'modified' : 'unchanged', children: children };
+}
+
+// --- 数组元素智能配对引擎 ---
+function matchArrayElements(oldArr, newArr) {
+    var oldLen = oldArr.length, newLen = newArr.length;
+    if (oldLen === 0 && newLen === 0) return [];
+    if (oldLen === 0) return newArr.map(function(v) { return { type: 'added', newVal: v }; });
+    if (newLen === 0) return oldArr.map(function(v) { return { type: 'removed', oldVal: v }; });
+
+    // --- 第1层：主键自动检测（仅全是对象时） ---
+    var allOldObj = true, allNewObj = true;
+    for (var i = 0; i < oldLen; i++) { if (oldArr[i] === null || typeof oldArr[i] !== 'object' || Array.isArray(oldArr[i])) { allOldObj = false; break; } }
+    for (var i = 0; i < newLen; i++) { if (newArr[i] === null || typeof newArr[i] !== 'object' || Array.isArray(newArr[i])) { allNewObj = false; break; } }
+
+    if (allOldObj && allNewObj) {
+        var pk = detectPrimaryKey(oldArr, newArr);
+        if (pk) return matchByPrimaryKey(oldArr, newArr, pk);
+    }
+
+    // --- 第2层：内容哈希精确匹配 + 相似度配对 ---
+    return matchByContent(oldArr, newArr);
+}
+
+// 检测主键：扫描所有对象的公共字段，找到值全局唯一的字段
+function detectPrimaryKey(oldArr, newArr) {
+    // 收集候选字段（两侧所有对象都有的字段）
+    var candidateKeys = null;
+    var all = oldArr.concat(newArr);
+    for (var i = 0; i < all.length; i++) {
+        var keys = Object.keys(all[i]);
+        if (candidateKeys === null) {
+            candidateKeys = {};
+            for (var j = 0; j < keys.length; j++) candidateKeys[keys[j]] = true;
+        } else {
+            var next = {};
+            for (var j = 0; j < keys.length; j++) {
+                if (candidateKeys[keys[j]]) next[keys[j]] = true;
+            }
+            candidateKeys = next;
+        }
+        if (Object.keys(candidateKeys).length === 0) return null;
+    }
+
+    // 优先级列表：常见主键名优先
+    var preferred = ['id', '_id', 'Id', 'ID', 'uuid', 'key', 'code', 'name'];
+    var remaining = Object.keys(candidateKeys).filter(function(k) { return preferred.indexOf(k) === -1; });
+    var ordered = preferred.filter(function(k) { return candidateKeys[k]; }).concat(remaining);
+
+    // 检查每个候选字段的值是否在各自数组内唯一，且值是原始类型
+    for (var ci = 0; ci < ordered.length; ci++) {
+        var field = ordered[ci];
+        var oldVals = {}, newVals = {};
+        var valid = true;
+
+        for (var i = 0; i < oldArr.length; i++) {
+            var v = oldArr[i][field];
+            if (v === null || typeof v === 'object') { valid = false; break; }
+            var sv = String(v);
+            if (oldVals[sv]) { valid = false; break; }
+            oldVals[sv] = true;
+        }
+        if (!valid) continue;
+
+        for (var i = 0; i < newArr.length; i++) {
+            var v = newArr[i][field];
+            if (v === null || typeof v === 'object') { valid = false; break; }
+            var sv = String(v);
+            if (newVals[sv]) { valid = false; break; }
+            newVals[sv] = true;
+        }
+        if (valid) return field;
+    }
+    return null;
+}
+
+// 按主键配对：以 new 的顺序为基准，deleted 的插在原邻居旁
+function matchByPrimaryKey(oldArr, newArr, pk) {
+    var oldMap = {};
+    for (var i = 0; i < oldArr.length; i++) oldMap[String(oldArr[i][pk])] = { idx: i, val: oldArr[i] };
+
+    var matchedOld = {};
+    var result = [];
+
+    // 第一遍：按 new 的顺序遍历，匹配或标记新增
+    for (var i = 0; i < newArr.length; i++) {
+        var key = String(newArr[i][pk]);
+        if (oldMap[key]) {
+            var o = oldMap[key];
+            matchedOld[o.idx] = true;
+            result.push({ type: 'matched', oldVal: o.val, newVal: newArr[i] });
+        } else {
+            result.push({ type: 'added', newVal: newArr[i] });
+        }
+    }
+
+    // 第二遍：收集 old 中未匹配的（deleted），插入到结果中合适的位置
+    var deleted = [];
+    for (var i = 0; i < oldArr.length; i++) {
+        if (!matchedOld[i]) deleted.push({ type: 'removed', oldVal: oldArr[i], origIdx: i });
+    }
+
+    // 把 deleted 项插回：每个 deleted 插在它原始相邻元素对应位置的前面
+    if (deleted.length > 0) {
+        // 建立 old 主键 → result 位置的映射
+        var keyToResultIdx = {};
+        for (var ri = 0; ri < result.length; ri++) {
+            if (result[ri].type === 'matched') {
+                keyToResultIdx[String(result[ri].oldVal[pk])] = ri;
+            }
+        }
+
+        for (var di = deleted.length - 1; di >= 0; di--) {
+            var d = deleted[di];
+            // 找它在 old 中右边最近的已匹配元素
+            var insertPos = result.length;
+            for (var oi = d.origIdx + 1; oi < oldArr.length; oi++) {
+                var nk = String(oldArr[oi][pk]);
+                if (keyToResultIdx[nk] !== undefined) {
+                    insertPos = keyToResultIdx[nk];
+                    break;
+                }
+            }
+            result.splice(insertPos, 0, d);
+            // 刷新映射（插入后后面的索引都+1了）
+            for (var k in keyToResultIdx) {
+                if (keyToResultIdx[k] >= insertPos) keyToResultIdx[k]++;
+            }
+        }
+    }
+
+    return result;
+}
+
+// 内容哈希配对：精确消除 → 相似度贪心（适用于混合类型或无主键的数组）
+function matchByContent(oldArr, newArr) {
+    var oldUsed = new Array(oldArr.length);
+    var newUsed = new Array(newArr.length);
+
+    // 缓存 stringify
+    var oldStrs = oldArr.map(function(v) { return JSON.stringify(v); });
+    var newStrs = newArr.map(function(v) { return JSON.stringify(v); });
+
+    // --- 精确匹配：用 Map 按内容分桶，同内容按出现顺序配对 ---
+    var newBuckets = {};
+    for (var i = 0; i < newArr.length; i++) {
+        var s = newStrs[i];
+        if (!newBuckets[s]) newBuckets[s] = [];
+        newBuckets[s].push(i);
+    }
+
+    var pairs = []; // {oldIdx, newIdx, type}
+
+    for (var i = 0; i < oldArr.length; i++) {
+        var s = oldStrs[i];
+        if (newBuckets[s] && newBuckets[s].length > 0) {
+            var ni = newBuckets[s].shift();
+            oldUsed[i] = true;
+            newUsed[ni] = true;
+            pairs.push({ oldIdx: i, newIdx: ni, type: 'unchanged' });
+        }
+    }
+
+    // --- 相似度配对：剩余的对象尝试匹配 ---
+    var unmatchedOld = [];
+    var unmatchedNew = [];
+    for (var i = 0; i < oldArr.length; i++) { if (!oldUsed[i]) unmatchedOld.push(i); }
+    for (var i = 0; i < newArr.length; i++) { if (!newUsed[i]) unmatchedNew.push(i); }
+
+    if (unmatchedOld.length > 0 && unmatchedNew.length > 0) {
+        // 只对两边都是对象的做相似度匹配
+        var simCandidates = [];
+        for (var oi = 0; oi < unmatchedOld.length; oi++) {
+            var oIdx = unmatchedOld[oi];
+            var ov = oldArr[oIdx];
+            if (ov === null || typeof ov !== 'object') continue;
+            for (var ni = 0; ni < unmatchedNew.length; ni++) {
+                var nIdx = unmatchedNew[ni];
+                if (newUsed[nIdx]) continue;
+                var nv = newArr[nIdx];
+                if (nv === null || typeof nv !== 'object') continue;
+                var sim = objectSimilarity(ov, nv);
+                if (sim >= 0.3) simCandidates.push({ oldIdx: oIdx, newIdx: nIdx, sim: sim });
+            }
+        }
+
+        // 贪心：按相似度降序取不冲突的配对
+        simCandidates.sort(function(a, b) { return b.sim - a.sim; });
+        for (var i = 0; i < simCandidates.length; i++) {
+            var c = simCandidates[i];
+            if (oldUsed[c.oldIdx] || newUsed[c.newIdx]) continue;
+            oldUsed[c.oldIdx] = true;
+            newUsed[c.newIdx] = true;
+            pairs.push({ oldIdx: c.oldIdx, newIdx: c.newIdx, type: 'matched' });
+        }
+    }
+
+    // --- 汇总：以 new 的顺序为基准输出 ---
+    // 构建 newIdx → pair 映射
+    var newIdxToPair = {};
+    for (var i = 0; i < pairs.length; i++) {
+        newIdxToPair[pairs[i].newIdx] = pairs[i];
+    }
+
+    var result = [];
+    var deletedBeforeNew = {}; // oldIdx → 需要插在哪个 newIdx 前面
+
+    // 对未匹配的 old，找它最近的已匹配右邻居，插在对方前面
+    var unmatchedOldFinal = [];
+    for (var i = 0; i < oldArr.length; i++) { if (!oldUsed[i]) unmatchedOldFinal.push(i); }
+
+    // 构建 oldIdx → newIdx 的位置映射（已配对的）
+    var oldToNew = {};
+    for (var i = 0; i < pairs.length; i++) {
+        if (pairs[i].oldIdx !== undefined) oldToNew[pairs[i].oldIdx] = pairs[i].newIdx;
+    }
+
+    for (var di = 0; di < unmatchedOldFinal.length; di++) {
+        var oIdx = unmatchedOldFinal[di];
+        var insertBefore = newArr.length; // 默认插末尾
+        for (var oi = oIdx + 1; oi < oldArr.length; oi++) {
+            if (oldToNew[oi] !== undefined) { insertBefore = oldToNew[oi]; break; }
+        }
+        if (!deletedBeforeNew[insertBefore]) deletedBeforeNew[insertBefore] = [];
+        deletedBeforeNew[insertBefore].push(oIdx);
+    }
+
+    // 按 new 的顺序输出
+    for (var ni = 0; ni < newArr.length; ni++) {
+        // 先插入应该在这个位置前面的 deleted
+        if (deletedBeforeNew[ni]) {
+            for (var d = 0; d < deletedBeforeNew[ni].length; d++) {
+                result.push({ type: 'removed', oldVal: oldArr[deletedBeforeNew[ni][d]] });
+            }
+        }
+        var p = newIdxToPair[ni];
+        if (p) {
+            if (p.type === 'unchanged') {
+                result.push({ type: 'unchanged', oldVal: oldArr[p.oldIdx], newVal: newArr[ni] });
+            } else {
+                result.push({ type: 'matched', oldVal: oldArr[p.oldIdx], newVal: newArr[ni] });
+            }
+        } else {
+            result.push({ type: 'added', newVal: newArr[ni] });
+        }
+    }
+    // 末尾的 deleted
+    if (deletedBeforeNew[newArr.length]) {
+        for (var d = 0; d < deletedBeforeNew[newArr.length].length; d++) {
+            result.push({ type: 'removed', oldVal: oldArr[deletedBeforeNew[newArr.length][d]] });
+        }
+    }
+
+    return result;
+}
+
+// 对象浅层相似度：相同键中值相等的比例
+function objectSimilarity(a, b) {
+    var isArrA = Array.isArray(a), isArrB = Array.isArray(b);
+    if (isArrA !== isArrB) return 0;
+    if (isArrA) return JSON.stringify(a) === JSON.stringify(b) ? 1 : 0;
+
+    var keysA = Object.keys(a), keysB = Object.keys(b);
+    var allKeys = {};
+    for (var i = 0; i < keysA.length; i++) allKeys[keysA[i]] = true;
+    for (var i = 0; i < keysB.length; i++) allKeys[keysB[i]] = true;
+    var total = Object.keys(allKeys).length;
+    if (total === 0) return 1;
+
+    var same = 0;
+    for (var k in allKeys) {
+        if (k in a && k in b && JSON.stringify(a[k]) === JSON.stringify(b[k])) same++;
+    }
+    return same / total;
 }
 
 // --- 字符级差异：查找行内首尾公共区间，锁定中间差异段 ---
@@ -737,8 +1022,9 @@ function generateAlignedDiff(oldSorted, newSorted, diffTree, tabSize) {
             push(prefix + '[', prefix + '[', 'unchanged', 'unchanged');
             diff.children.forEach((childDiff, idx) => {
                 const isLastChild = idx === diff.children.length - 1;
-                const oldItem = (oldVal && idx < oldVal.length) ? oldVal[idx] : undefined;
-                const newItem = (newVal && idx < newVal.length) ? newVal[idx] : undefined;
+                // 智能配对后 child 自带 _oldVal/_newVal，不再按索引取
+                const oldItem = childDiff._oldVal;
+                const newItem = childDiff._newVal;
                 walkValue(childDiff, oldItem, newItem, depth + 1, null, isLastChild);
             });
             push(ind(depth) + ']' + comma, ind(depth) + ']' + comma, 'unchanged', 'unchanged');
