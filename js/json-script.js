@@ -1355,12 +1355,228 @@ function runCompare() {
         return;
     }
 
-    let leftObj, rightObj;
-    try { leftObj = JSON.parse(leftText); }
-    catch (e) { alert('左侧 JSON 解析失败：\n' + e.message); return; }
-    try { rightObj = JSON.parse(rightText); }
-    catch (e) { alert('右侧 JSON 解析失败：\n' + e.message); return; }
+    // 先尝试直接解析
+    var leftOk = tryParse(leftText);
+    var rightOk = tryParse(rightText);
 
+    if (leftOk.ok && rightOk.ok) {
+        executeCompare(leftOk.val, rightOk.val);
+        return;
+    }
+
+    // 解析失败 → 智能容错检测
+    var leftIssues = leftOk.ok ? null : detectJsonIssues(leftText);
+    var rightIssues = rightOk.ok ? null : detectJsonIssues(rightText);
+
+    // 无可修复问题 → 直接报原始错误
+    if (leftIssues && leftIssues.fixes.length === 0) {
+        alert('左侧 JSON 解析失败：\n' + leftOk.err);
+        return;
+    }
+    if (rightIssues && rightIssues.fixes.length === 0) {
+        alert('右侧 JSON 解析失败：\n' + rightOk.err);
+        return;
+    }
+
+    // 高亮问题位置
+    var markers = [];
+    if (leftIssues) highlightIssues(editorLeft, leftIssues.positions, markers);
+    if (rightIssues) highlightIssues(editorRight, rightIssues.positions, markers);
+
+    // 构建统一的问题报告
+    var report = buildIssueReport(leftIssues, rightIssues);
+
+    showFixConfirmDialog(report, function(accepted) {
+        // 不管用户选什么，先清除红色高亮
+        markers.forEach(function(m) { m.clear(); });
+
+        if (!accepted) return;
+
+        // 应用修复
+        var fixedLeft = leftIssues ? leftIssues.fixed : leftText;
+        var fixedRight = rightIssues ? rightIssues.fixed : rightText;
+
+        var leftResult = tryParse(fixedLeft);
+        var rightResult = tryParse(fixedRight);
+
+        if (!leftResult.ok) { alert('左侧修复后仍然无法解析：\n' + leftResult.err); return; }
+        if (!rightResult.ok) { alert('右侧修复后仍然无法解析：\n' + rightResult.err); return; }
+
+        // 将修复后的文本回写编辑器（让用户看到干净的数据）
+        if (leftIssues) editorLeft.setValue(fixedLeft);
+        if (rightIssues) editorRight.setValue(fixedRight);
+
+        executeCompare(leftResult.val, rightResult.val);
+    });
+}
+
+function tryParse(text) {
+    try { return { ok: true, val: JSON.parse(text) }; }
+    catch(e) { return { ok: false, err: e.message }; }
+}
+
+// --- 智能容错检测器 ---
+function detectJsonIssues(text) {
+    var fixes = [];
+    var positions = []; // {line, ch, len, desc}
+    var fixed = text;
+
+    // 统计行偏移表（用于将全局 index 转换为 line:ch）
+    var lineOffsets = [0];
+    for (var i = 0; i < text.length; i++) {
+        if (text[i] === '\n') lineOffsets.push(i + 1);
+    }
+    function posOf(idx) {
+        var lo = 0, hi = lineOffsets.length - 1;
+        while (lo < hi) {
+            var mid = (lo + hi + 1) >> 1;
+            if (lineOffsets[mid] <= idx) lo = mid; else hi = mid - 1;
+        }
+        return { line: lo, ch: idx - lineOffsets[lo] };
+    }
+
+    // 1. BOM / 不可见字符
+    var bomRe = /[\uFEFF\u200B\u200C\u200D\u00A0]/g;
+    var m;
+    while ((m = bomRe.exec(text)) !== null) {
+        var p = posOf(m.index);
+        var desc = m[0] === '\uFEFF' ? 'BOM标记' : m[0] === '\u00A0' ? '不间断空格' : '零宽字符';
+        positions.push({ line: p.line, ch: p.ch, len: 1, desc: desc });
+    }
+    fixes.push({ name: 'BOM/不可见字符', count: positions.length });
+    fixed = fixed.replace(bomRe, '');
+
+    // 2. 中文标点
+    var cnPuncMap = {
+        '\uff0c': ',', '\uff1a': ':', '\uff1b': ';',
+        '\u201c': '"', '\u201d': '"', '\u2018': "'", '\u2019': "'",
+        '\u3000': ' ', '\uff08': '(', '\uff09': ')',
+        '\uff3b': '[', '\uff3d': ']', '\uff5b': '{', '\uff5d': '}'
+    };
+    var cnKeys = Object.keys(cnPuncMap);
+    var cnRe = new RegExp('[' + cnKeys.join('') + ']', 'g');
+    var cnCount = 0;
+    // 在原始 text 上检测位置（用于高亮）
+    while ((m = cnRe.exec(text)) !== null) {
+        var p = posOf(m.index);
+        positions.push({ line: p.line, ch: p.ch, len: 1, desc: '中文标点 ' + m[0] + ' → ' + cnPuncMap[m[0]] });
+        cnCount++;
+    }
+    if (cnCount > 0) fixes.push({ name: '中文标点', count: cnCount });
+    fixed = fixed.replace(cnRe, function(ch) { return cnPuncMap[ch] || ch; });
+
+    // 3-6 下面的检测在已经修复 BOM 和中文标点之后的文本上进行
+    var working = fixed;
+
+    // 3. 单引号 → 双引号（仅在字符串值的 JSON 结构位置，不在双引号字符串内）
+    var singleQuoteCount = 0;
+    working = working.replace(/'((?:[^'\\]|\\.)*)'/g, function(match, inner, offset) {
+        // 简单检测是否在合理的 JSON 位置（键名或字符串值前后常有 : , [ { 等）
+        singleQuoteCount++;
+        return '"' + inner.replace(/"/g, '\\"') + '"';
+    });
+    if (singleQuoteCount > 0) fixes.push({ name: '单引号→双引号', count: singleQuoteCount });
+
+    // 4. 行尾注释 // 和块注释 /* */
+    var commentCount = 0;
+    working = working.replace(/\/\/[^\n]*/g, function() { commentCount++; return ''; });
+    working = working.replace(/\/\*[\s\S]*?\*\//g, function() { commentCount++; return ''; });
+    if (commentCount > 0) fixes.push({ name: '注释', count: commentCount });
+
+    // 5. 尾逗号（] 或 } 前的逗号）
+    var trailingCount = 0;
+    working = working.replace(/,(\s*[}\]])/g, function(m, after) { trailingCount++; return after; });
+    if (trailingCount > 0) fixes.push({ name: '尾部逗号', count: trailingCount });
+
+    // 6. 无引号键名
+    var unquotedCount = 0;
+    working = working.replace(/([{,]\s*)([a-zA-Z_$][\w$]*)(\s*:)/g, function(m, before, key, after) {
+        unquotedCount++;
+        return before + '"' + key + '"' + after;
+    });
+    if (unquotedCount > 0) fixes.push({ name: '无引号键名', count: unquotedCount });
+
+    fixed = working;
+
+    // 过滤掉 count=0 的
+    fixes = fixes.filter(function(f) { return f.count > 0; });
+
+    return { fixes: fixes, positions: positions, fixed: fixed };
+}
+
+// 高亮问题位置（红色下划线 + 背景）
+function highlightIssues(cm, positions, markers) {
+    cm.operation(function() {
+        for (var i = 0; i < positions.length; i++) {
+            var p = positions[i];
+            if (p.line < cm.lineCount()) {
+                var mk = cm.markText(
+                    { line: p.line, ch: p.ch },
+                    { line: p.line, ch: p.ch + p.len },
+                    { className: 'json-issue-highlight', title: p.desc }
+                );
+                markers.push(mk);
+            }
+        }
+    });
+}
+
+// 构建问题报告文本
+function buildIssueReport(leftIssues, rightIssues) {
+    var lines = [];
+    if (leftIssues && leftIssues.fixes.length > 0) {
+        lines.push('【左侧】检测到以下问题：');
+        leftIssues.fixes.forEach(function(f) { lines.push('  · ' + f.name + ' × ' + f.count); });
+    }
+    if (rightIssues && rightIssues.fixes.length > 0) {
+        if (lines.length > 0) lines.push('');
+        lines.push('【右侧】检测到以下问题：');
+        rightIssues.fixes.forEach(function(f) { lines.push('  · ' + f.name + ' × ' + f.count); });
+    }
+    return lines.join('\n');
+}
+
+// 确认对话框
+function showFixConfirmDialog(report, callback) {
+    // 移除旧对话框
+    var old = document.getElementById('fix-confirm-dialog');
+    if (old) old.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'fix-confirm-dialog';
+    overlay.className = 'modal-overlay';
+    overlay.style.display = 'flex';
+
+    overlay.innerHTML =
+        '<div class="modal" style="max-width:480px;">' +
+            '<div class="modal-header">JSON 格式问题检测</div>' +
+            '<div class="modal-body" style="padding:20px;">' +
+                '<pre class="fix-report-text">' + escapeHtml(report) + '</pre>' +
+                '<p style="margin-top:14px;color:var(--text-secondary);font-size:13px;">是否自动修复以上问题并继续对比？</p>' +
+            '</div>' +
+            '<div class="modal-footer" style="gap:10px;">' +
+                '<button class="secondary-btn" id="fix-cancel-btn">取消</button>' +
+                '<button class="primary-btn" id="fix-apply-btn">修复并对比</button>' +
+            '</div>' +
+        '</div>';
+
+    document.body.appendChild(overlay);
+
+    document.getElementById('fix-apply-btn').addEventListener('click', function() {
+        overlay.remove();
+        callback(true);
+    });
+    document.getElementById('fix-cancel-btn').addEventListener('click', function() {
+        overlay.remove();
+        callback(false);
+    });
+}
+
+function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function executeCompare(leftObj, rightObj) {
     // 步骤1: 递归键名排序 (Rule 4)
     const oldSorted = sortObjectKeys(leftObj);
     const newSorted = sortObjectKeys(rightObj);
@@ -1379,14 +1595,14 @@ function runCompare() {
     isDiffMode = true;
     applyDiffToEditors(result);
 
-    // 步骤5: 切换 fold gutter 为自定义 range finder（Diff 内容不是合法 JSON，原生 brace-fold 依赖 tokenizer 会失效）
+    // 步骤5: 切换 fold gutter 为自定义 range finder
     editorLeft.setOption('foldGutter', { rangeFinder: diffBracketFold });
     editorRight.setOption('foldGutter', { rangeFinder: diffBracketFold });
 
     // 步骤6: 启用双边同步
     enableDiffSync();
 
-    // 步骤7: 折叠到第一级（内→外顺序，确保嵌套折叠被保留）
+    // 步骤7: 折叠到第一级
     foldToLevel(editorLeft, 1);
     foldToLevel(editorRight, 1);
 

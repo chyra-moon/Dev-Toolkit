@@ -327,3 +327,42 @@ html[data-theme="dark"] .moon-icon { opacity: 0; transform: rotate(90deg) scale(
 
 /* --- Diff 模式下 Spacer 行内容隐藏 --- */
 .diff-line-spacer .CodeMirror-line span { opacity: 0; }
+
+/* --- JSON 格式问题高亮（红色背景+下划线） --- */
+.json-issue-highlight {
+    background: rgba(239, 68, 68, 0.25);
+    text-decoration: wavy underline #ef4444;
+    text-underline-offset: 2px;
+    border-radius: 2px;
+}
+
+/* --- 修复确认对话框 --- */
+.fix-report-text {
+    font-family: var(--font-mono, 'JetBrains Mono', Consolas, monospace);
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    background: var(--bg-secondary, #f5f5f5);
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin: 0;
+    color: var(--text-primary);
+}
+[data-theme="dark"] .fix-report-text {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.1);
+}
+.secondary-btn {
+    padding: 7px 20px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color, #d0d0d0);
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.secondary-btn:hover {
+    background: var(--bg-secondary, #f0f0f0);
+}
