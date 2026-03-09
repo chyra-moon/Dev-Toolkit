@@ -404,52 +404,100 @@ window.addEventListener('keydown', (e) => {
     }
 }, true); // <- 关键点：设置为 true，在捕获阶段拦截事件
 
+// 自定义纯括号匹配的 fold range finder（不依赖 JSON tokenizer，Diff 模式下也可用）
+function diffBracketFold(cm, start) {
+    var line = cm.getLine(start.line);
+    if (!line) return null;
+
+    function sanitize(s) {
+        return s.replace(/\\./g, '__').replace(/"(?:[^"\\]|\\.)*"/g, function(m) {
+            return '"' + '_'.repeat(Math.max(0, m.length - 2)) + '"';
+        });
+    }
+
+    var clean = sanitize(line);
+    var openCh = -1, openBracket = null;
+    for (var j = 0; j < clean.length; j++) {
+        if (clean[j] === '{' || clean[j] === '[') { openCh = j; openBracket = clean[j]; break; }
+    }
+    if (openCh < 0) return null;
+
+    var closeBracket = openBracket === '{' ? '}' : ']';
+    var depth = 1;
+
+    for (var k = openCh + 1; k < clean.length; k++) {
+        if (clean[k] === openBracket) depth++;
+        else if (clean[k] === closeBracket) { depth--; if (depth === 0) return null; }
+    }
+
+    for (var i = start.line + 1; i <= cm.lastLine(); i++) {
+        var cl = sanitize(cm.getLine(i) || '');
+        for (var c = 0; c < cl.length; c++) {
+            if (cl[c] === openBracket) depth++;
+            else if (cl[c] === closeBracket) {
+                depth--;
+                if (depth === 0) {
+                    return { from: CodeMirror.Pos(start.line, openCh + 1), to: CodeMirror.Pos(i, c) };
+                }
+            }
+        }
+    }
+    return null;
+}
+
 function unfoldAll(cm) {
     if (!cm) return;
-    cm.operation(() => {
-        // 安全遍历所有行进行强制展开
-        for (let i = cm.firstLine(); i <= cm.lastLine(); i++) {
+    cm.operation(function() {
+        for (var i = cm.firstLine(); i <= cm.lastLine(); i++) {
             cm.foldCode(CodeMirror.Pos(i, 0), null, "unfold");
         }
     });
 }
 
-// 层级折叠辅助 (重构版：基于真实的结构深度而非缩进空格数量，兼容任意格式化的 JSON)
+// 层级折叠辅助 (重构版：内→外顺序折叠，确保展开外层时内层折叠仍然保持)
 function foldToLevel(cm, level) {
     if (!cm) return;
-    
-    cm.operation(() => {
-        // Step 1: 先全部展开，彻底消除旧的折叠造成的错乱和干扰
-        for (let i = cm.firstLine(); i <= cm.lastLine(); i++) {
+
+    cm.operation(function() {
+        // Step 1: 先全部展开
+        for (var i = cm.firstLine(); i <= cm.lastLine(); i++) {
             cm.foldCode(CodeMirror.Pos(i, 0), null, "unfold");
         }
-        
-        // Step 2: 重新通过括号匹配计算真实的层级深度（Depth Level）
-        let depths = [];
-        let currentDepth = 0;
-        for (let i = cm.firstLine(); i <= cm.lastLine(); i++) {
-            depths[i] = currentDepth; // 记录当前行开启时的深度
-            let lineText = cm.getLine(i);
-            
-            // 粗略过滤掉字符串内容，防止字符串内部的 "{" 干扰层级计算
-            let cleanText = lineText.replace(/\\"/g, '').replace(/"[^"]*"/g, '');
-            for (let char of cleanText) {
-                if (char === '{' || char === '[') currentDepth++;
-                else if (char === '}' || char === ']') currentDepth--;
+
+        // Step 2: 计算每一行的真实结构深度
+        var depths = [];
+        var currentDepth = 0;
+        for (var i = cm.firstLine(); i <= cm.lastLine(); i++) {
+            depths[i] = currentDepth;
+            var lineText = cm.getLine(i) || '';
+            var cleanText = lineText.replace(/\\./g, '__').replace(/"(?:[^"\\]|\\.)*"/g, '""');
+            for (var ci = 0; ci < cleanText.length; ci++) {
+                var ch = cleanText[ci];
+                if (ch === '{' || ch === '[') currentDepth++;
+                else if (ch === '}' || ch === ']') currentDepth--;
             }
         }
-        
-        // Step 3: 根据真实深度精确执行折叠
-        // 凡是深度达到目标要求的对象/数组，均做折叠包裹
-        for (let i = cm.firstLine(); i <= cm.lastLine(); i++) {
-            let lineText = cm.getLine(i);
-            
-            // 只要该行命中深度，且含括起手符就尝试折叠 (如果是字符串内的不管，CodeMirror 内部会忽略无效 fold指令)
+
+        // Step 3: 收集所有在目标深度(含更深)的可折叠行
+        var foldable = [];
+        for (var i = cm.firstLine(); i <= cm.lastLine(); i++) {
             if (depths[i] >= level) {
-                if (lineText.includes('{') || lineText.includes('[')) {
-                    cm.foldCode(CodeMirror.Pos(i, 0), null, "fold");
+                var lt = cm.getLine(i) || '';
+                var ct = lt.replace(/\\./g, '__').replace(/"(?:[^"\\]|\\.)*"/g, '""');
+                for (var ci = 0; ci < ct.length; ci++) {
+                    if (ct[ci] === '{' || ct[ci] === '[') {
+                        foldable.push({ line: i, depth: depths[i] });
+                        break;
+                    }
                 }
             }
+        }
+
+        // Step 4: 按深度从深到浅排序后折叠（内→外），确保嵌套折叠被保留
+        foldable.sort(function(a, b) { return b.depth - a.depth; });
+        var rf = isDiffMode ? diffBracketFold : null;
+        for (var fi = 0; fi < foldable.length; fi++) {
+            cm.foldCode(CodeMirror.Pos(foldable[fi].line, 0), rf, "fold");
         }
     });
 }
@@ -719,6 +767,37 @@ function generateAlignedDiff(oldSorted, newSorted, diffTree, tabSize) {
     }
 
     walkValue(diffTree, oldSorted, newSorted, 0, null, true);
+
+    // 后处理：逐侧独立修正逗号（解决因 spacer 导致的尾逗号错乱）
+    function fixCommas(lines) {
+        for (let i = 0; i < lines.length; i++) {
+            const cur = lines[i];
+            if (!cur.trim()) continue;
+            const trimmed = cur.trim();
+            // 跳过开括号行（末尾是 { 或 [）
+            if (trimmed.endsWith('{') || trimmed.endsWith('[')) continue;
+
+            // 找到下一个非空行
+            let nextTrimmed = '';
+            for (let j = i + 1; j < lines.length; j++) {
+                if (lines[j].trim()) { nextTrimmed = lines[j].trim(); break; }
+            }
+
+            const beforeClose = (nextTrimmed.length > 0 && (nextTrimmed[0] === '}' || nextTrimmed[0] === ']'));
+            const needsComma = (nextTrimmed.length > 0 && !beforeClose);
+            const hasComma = cur.trimEnd().endsWith(',');
+
+            if (needsComma && !hasComma) {
+                lines[i] = cur.trimEnd() + ',';
+            } else if (!needsComma && hasComma) {
+                const idx = cur.lastIndexOf(',');
+                lines[i] = cur.substring(0, idx);
+            }
+        }
+    }
+    fixCommas(leftLines);
+    fixCommas(rightLines);
+
     return { leftLines, rightLines, leftAnno, rightAnno, charDiffs };
 }
 
@@ -759,21 +838,34 @@ function applyRightBorders(rightAnno) {
     flush(rightAnno.length - 1);
 }
 
-// --- 右侧行号 Gutter 标记 ---
-function applyGutterMarkers(rightAnno) {
+// --- 双侧行号 Gutter 标记 ---
+function applyGutterMarkers(leftAnno, rightAnno) {
     for (let i = 0; i < rightAnno.length; i++) {
-        const t = rightAnno[i];
-        if (t === 'added' || t === 'modified') {
+        // 右侧 Gutter
+        const rt = rightAnno[i];
+        if (rt === 'added' || rt === 'modified') {
             const el = document.createElement('div');
-            el.className = 'diff-gutter-dot diff-gutter-' + t;
+            el.className = 'diff-gutter-dot diff-gutter-' + rt;
             el.textContent = '●';
             editorRight.setGutterMarker(i, 'diff-gutter', el);
-        } else if (t === 'spacer') {
-            // 右侧 spacer 意味着左侧存在删除
+        } else if (rt === 'spacer') {
             const el = document.createElement('div');
             el.className = 'diff-gutter-dot diff-gutter-removed';
             el.textContent = '●';
             editorRight.setGutterMarker(i, 'diff-gutter', el);
+        }
+        // 左侧 Gutter
+        const lt = leftAnno[i];
+        if (lt === 'removed' || lt === 'modified') {
+            const el = document.createElement('div');
+            el.className = 'diff-gutter-dot diff-gutter-' + lt;
+            el.textContent = '●';
+            editorLeft.setGutterMarker(i, 'diff-gutter', el);
+        } else if (lt === 'spacer') {
+            const el = document.createElement('div');
+            el.className = 'diff-gutter-dot diff-gutter-added';
+            el.textContent = '●';
+            editorLeft.setGutterMarker(i, 'diff-gutter', el);
         }
     }
 }
@@ -784,8 +876,10 @@ function applyDiffToEditors(result) {
 
     clearDiffMarks();
 
-    // 为右侧编辑器加入 diff-gutter 列
-    editorRight.setOption('gutters', ['CodeMirror-linenumbers', 'CodeMirror-foldgutter', 'diff-gutter']);
+    // 为两侧编辑器统一加入 diff-gutter 列（保持 gutter 宽度一致 → 左右对齐）
+    const diffGutters = ['CodeMirror-linenumbers', 'CodeMirror-foldgutter', 'diff-gutter'];
+    editorLeft.setOption('gutters', diffGutters);
+    editorRight.setOption('gutters', diffGutters);
 
     editorLeft.setValue(leftLines.join('\n'));
     editorRight.setValue(rightLines.join('\n'));
@@ -821,8 +915,8 @@ function applyDiffToEditors(result) {
 
     // 右侧框体边框
     applyRightBorders(rightAnno);
-    // 右侧 Gutter 标记
-    applyGutterMarkers(rightAnno);
+    // 双侧 Gutter 标记
+    applyGutterMarkers(leftAnno, rightAnno);
 }
 
 // --- 折叠透视徽章：在右侧折叠行末尾显示差异类型小圆点 ---
@@ -965,14 +1059,18 @@ function runCompare() {
     isDiffMode = true;
     applyDiffToEditors(result);
 
-    // 步骤5: 启用双边同步
+    // 步骤5: 切换 fold gutter 为自定义 range finder（Diff 内容不是合法 JSON，原生 brace-fold 依赖 tokenizer 会失效）
+    editorLeft.setOption('foldGutter', { rangeFinder: diffBracketFold });
+    editorRight.setOption('foldGutter', { rangeFinder: diffBracketFold });
+
+    // 步骤6: 启用双边同步
     enableDiffSync();
 
-    // 步骤6: 折叠到第一级 (Rule 8)
+    // 步骤7: 折叠到第一级（内→外顺序，确保嵌套折叠被保留）
     foldToLevel(editorLeft, 1);
     foldToLevel(editorRight, 1);
 
-    // 步骤7: 更新折叠透视徽章
+    // 步骤8: 更新折叠透视徽章
     setTimeout(updateDiffBadges, 50);
 }
 
