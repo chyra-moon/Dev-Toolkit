@@ -14,11 +14,95 @@ const defaultSettings = {
     }
 };
 
-let userSettings = { ...defaultSettings };
+function shortcutFromString(value) {
+    if (typeof value !== 'string') return null;
+    const parts = value.split('+').map(s => s.trim()).filter(Boolean);
+    if (!parts.length) return null;
+
+    const rawKey = parts[parts.length - 1];
+    const modParts = parts.slice(0, -1).map(s => s.toUpperCase());
+    const ctrl = modParts.includes('CTRL') || modParts.includes('CMD') || modParts.includes('META');
+    const shift = modParts.includes('SHIFT');
+    const alt = modParts.includes('ALT') || modParts.includes('OPTION');
+
+    const upperKey = rawKey.toUpperCase();
+    let code = '';
+    let key = upperKey;
+    let displayKey = upperKey;
+
+    if (/^[A-Z]$/.test(upperKey)) {
+        code = 'Key' + upperKey;
+    } else if (/^[0-9]$/.test(upperKey)) {
+        code = 'Digit' + upperKey;
+        key = upperKey;
+        displayKey = upperKey;
+    } else if (upperKey === 'SPACE') {
+        code = 'Space';
+        key = ' ';
+        displayKey = 'SPACE';
+    }
+
+    return { ctrl, shift, alt, code, key, displayKey };
+}
+
+function normalizeShortcut(def, fallback) {
+    if (def === null) return null;
+    if (typeof def === 'string') {
+        return shortcutFromString(def) || { ...fallback };
+    }
+    if (!def || typeof def !== 'object') {
+        return { ...fallback };
+    }
+
+    let key = typeof def.key === 'string' ? def.key.toUpperCase() : '';
+    let code = typeof def.code === 'string' ? def.code : '';
+
+    if (!code && /^[A-Z]$/.test(key)) code = 'Key' + key;
+    if (!code && /^[0-9]$/.test(key)) code = 'Digit' + key;
+    if (!code && key === ' ') code = 'Space';
+
+    if (!key && code.startsWith('Key')) key = code.replace('Key', '');
+    if (!key && code.startsWith('Digit')) key = code.replace('Digit', '');
+    if (!key && code === 'Space') key = ' ';
+
+    const displayKey = (typeof def.displayKey === 'string' && def.displayKey) ? def.displayKey : (key === ' ' ? 'SPACE' : key);
+    if (!code && !key) return { ...fallback };
+
+    return {
+        ctrl: !!def.ctrl,
+        shift: !!def.shift,
+        alt: !!def.alt,
+        code,
+        key,
+        displayKey
+    };
+}
+
+let userSettings = {
+    ...defaultSettings,
+    shortcuts: { ...defaultSettings.shortcuts }
+};
 try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) userSettings = { ...defaultSettings, ...JSON.parse(saved) };
+    if (saved) {
+        const parsed = JSON.parse(saved);
+        const savedShortcuts = (parsed && typeof parsed.shortcuts === 'object' && parsed.shortcuts !== null) ? parsed.shortcuts : {};
+        userSettings = {
+            ...defaultSettings,
+            ...parsed,
+            shortcuts: {
+                ...defaultSettings.shortcuts,
+                ...savedShortcuts
+            }
+        };
+    }
 } catch(e) {}
+
+userSettings.shortcuts = {
+    lv1: normalizeShortcut(userSettings.shortcuts.lv1, defaultSettings.shortcuts.lv1),
+    lv2: normalizeShortcut(userSettings.shortcuts.lv2, defaultSettings.shortcuts.lv2),
+    unfold: normalizeShortcut(userSettings.shortcuts.unfold, defaultSettings.shortcuts.unfold)
+};
 
 function saveSettings() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(userSettings));
@@ -278,16 +362,23 @@ window.addEventListener('keydown', (e) => {
     const checkShortcut = (def) => {
         if (!def) return false;
         
-        let isMatchKey = false;
-        // 核心匹配：优先匹配物理按键 code，若无则匹配 key (容错)
-        if (def.code && e.code) {
-            isMatchKey = (e.code === def.code);
-        } else {
-            isMatchKey = (e.key.toUpperCase() === (def.key || "").toUpperCase()) || 
-                         (e.code && def.key && e.code.replace('Digit','').replace('Key','') === def.key);
-        }
+        const eventCode = (e.code || '');
+        const eventKey = (e.key || '').toUpperCase();
+        const defCode = (def.code || '');
+        const defKey = (def.key || '').toUpperCase();
+        
+        const defKeyFromCode = defCode.replace(/^Digit/, '').replace(/^Numpad/, '').replace(/^Key/, '').toUpperCase();
+        const eventKeyFromCode = eventCode.replace(/^Digit/, '').replace(/^Numpad/, '').replace(/^Key/, '').toUpperCase();
 
-        // 严格比对修饰键是否一致
+        // 匹配逻辑：优先用 Code 物理按键匹配，其次用 Key 字符匹配
+        const codeMatch = !!(defCode && eventCode && eventCode === defCode);
+        const keyMatch = !!(
+            (defKey && eventKey === defKey) ||
+            (defKey && eventKeyFromCode === defKey) ||
+            (defKeyFromCode && eventKey === defKeyFromCode)
+        );
+        const isMatchKey = codeMatch || keyMatch;
+
         const ctrlMatch = (e.ctrlKey || e.metaKey) === !!def.ctrl;
         const shiftMatch = e.shiftKey === !!def.shift;
         const altMatch = e.altKey === !!def.alt;
@@ -311,27 +402,50 @@ window.addEventListener('keydown', (e) => {
 }, true); // <- 关键点：设置为 true，在捕获阶段拦截事件
 
 function unfoldAll(cm) {
+    if (!cm) return;
     cm.operation(() => {
+        // 安全遍历所有行进行强制展开
         for (let i = cm.firstLine(); i <= cm.lastLine(); i++) {
             cm.foldCode(CodeMirror.Pos(i, 0), null, "unfold");
         }
     });
 }
 
-// 层级折叠辅助
+// 层级折叠辅助 (重构版：基于真实的结构深度而非缩进空格数量，兼容任意格式化的 JSON)
 function foldToLevel(cm, level) {
-    const targetIndent = level * cm.getOption("tabSize");
+    if (!cm) return;
+    
     cm.operation(() => {
-        // Step 1: 先全部展开，防止之前的折叠状态产生干扰
+        // Step 1: 先全部展开，彻底消除旧的折叠造成的错乱和干扰
         for (let i = cm.firstLine(); i <= cm.lastLine(); i++) {
             cm.foldCode(CodeMirror.Pos(i, 0), null, "unfold");
         }
-        // Step 2: 将大于等于目标缩进级别的层进行折叠
+        
+        // Step 2: 重新通过括号匹配计算真实的层级深度（Depth Level）
+        let depths = [];
+        let currentDepth = 0;
+        for (let i = cm.firstLine(); i <= cm.lastLine(); i++) {
+            depths[i] = currentDepth; // 记录当前行开启时的深度
+            let lineText = cm.getLine(i);
+            
+            // 粗略过滤掉字符串内容，防止字符串内部的 "{" 干扰层级计算
+            let cleanText = lineText.replace(/\\"/g, '').replace(/"[^"]*"/g, '');
+            for (let char of cleanText) {
+                if (char === '{' || char === '[') currentDepth++;
+                else if (char === '}' || char === ']') currentDepth--;
+            }
+        }
+        
+        // Step 3: 根据真实深度精确执行折叠
+        // 凡是深度达到目标要求的对象/数组，均做折叠包裹
         for (let i = cm.firstLine(); i <= cm.lastLine(); i++) {
             let lineText = cm.getLine(i);
-            let indent = lineText.search(/\S/);
-            if (indent !== -1 && indent >= targetIndent) {
-                cm.foldCode(CodeMirror.Pos(i, 0), null, "fold");
+            
+            // 只要该行命中深度，且含括起手符就尝试折叠 (如果是字符串内的不管，CodeMirror 内部会忽略无效 fold指令)
+            if (depths[i] >= level) {
+                if (lineText.includes('{') || lineText.includes('[')) {
+                    cm.foldCode(CodeMirror.Pos(i, 0), null, "fold");
+                }
             }
         }
     });
