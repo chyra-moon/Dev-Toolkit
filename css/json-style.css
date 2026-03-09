@@ -302,16 +302,24 @@ html[data-theme="dark"] .moon-icon { opacity: 0; transform: rotate(90deg) scale(
 /* --- 折叠透视徽章小圆点 --- */
 .diff-badge-container {
     display: inline-flex;
-    gap: 4px;
-    margin-left: 16px;
+    align-items: center;
+    gap: 5px;
+    margin-left: 12px;
+    padding: 2px 8px;
+    background: rgba(120, 120, 120, 0.12);
+    border-radius: 10px;
     vertical-align: middle;
     pointer-events: none;
 }
+[data-theme="dark"] .diff-badge-container {
+    background: rgba(200, 200, 200, 0.12);
+}
 .diff-badge-dot {
     display: inline-block;
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
+    box-shadow: 0 0 2px rgba(0,0,0,0.2);
 }
 .diff-badge-added    { background: #22c55e; }
 .diff-badge-removed  { background: #ef4444; }
