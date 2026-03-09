@@ -240,3 +240,66 @@ html[data-theme="dark"] .moon-icon { opacity: 0; transform: rotate(90deg) scale(
     cursor: pointer;
     box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
+
+/* ==================== Diff 对比渲染样式 ==================== */
+
+/* --- 行级背景色 --- */
+.diff-line-modified { background: rgba(202, 138, 4, 0.15) !important; }
+.diff-line-added    { background: rgba(34, 197, 94, 0.15) !important; }
+.diff-line-removed  { background: rgba(239, 68, 68, 0.15) !important; }
+.diff-line-spacer   { background: repeating-linear-gradient(
+    -45deg,
+    transparent, transparent 4px,
+    rgba(148, 163, 184, 0.06) 4px, rgba(148, 163, 184, 0.06) 8px
+) !important; }
+
+/* --- 字符级高亮（修改行内的值差异） --- */
+/* 左侧：柔和的深黄色背景 */
+.diff-char-old {
+    background: rgba(202, 138, 4, 0.3) !important;
+    border-radius: 2px;
+}
+/* 右侧：边框框起来（Rule 6） */
+.diff-char-new {
+    border: 1.5px solid rgba(202, 138, 4, 0.7);
+    border-radius: 3px;
+    padding: 0 1px;
+}
+
+/* --- 右侧差异区块边框 --- */
+.diff-block-side   { border-left: 2.5px solid rgba(59, 130, 246, 0.45) !important;
+                     border-right: 2.5px solid rgba(59, 130, 246, 0.45) !important; }
+.diff-block-top    { border-top: 2.5px solid rgba(59, 130, 246, 0.45) !important; }
+.diff-block-bottom { border-bottom: 2.5px solid rgba(59, 130, 246, 0.45) !important; }
+
+/* --- 右侧 Gutter 状态圆点 --- */
+.diff-gutter-dot {
+    font-size: 8px;
+    line-height: inherit;
+    text-align: center;
+    width: 14px;
+}
+.diff-gutter-added    { color: #22c55e; }
+.diff-gutter-modified { color: #ca8a04; }
+.diff-gutter-removed  { color: #ef4444; }
+
+/* --- 折叠透视徽章小圆点 --- */
+.diff-badge-container {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: 16px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+.diff-badge-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+.diff-badge-added    { background: #22c55e; }
+.diff-badge-removed  { background: #ef4444; }
+.diff-badge-modified { background: #ca8a04; }
+
+/* --- Diff 模式下 Spacer 行内容隐藏 --- */
+.diff-line-spacer .CodeMirror-line span { opacity: 0; }

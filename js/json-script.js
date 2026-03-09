@@ -390,14 +390,17 @@ window.addEventListener('keydown', (e) => {
         e.preventDefault(); 
         e.stopPropagation();
         foldToLevel(editorLeft, 1); foldToLevel(editorRight, 1);
+        if (isDiffMode) setTimeout(updateDiffBadges, 50);
     } else if (checkShortcut(shortcuts.lv2)) {
         e.preventDefault(); 
         e.stopPropagation();
         foldToLevel(editorLeft, 2); foldToLevel(editorRight, 2);
+        if (isDiffMode) setTimeout(updateDiffBadges, 50);
     } else if (checkShortcut(shortcuts.unfold)) {
         e.preventDefault();
         e.stopPropagation();
         unfoldAll(editorLeft); unfoldAll(editorRight);
+        if (isDiffMode) setTimeout(updateDiffBadges, 50);
     }
 }, true); // <- 关键点：设置为 true，在捕获阶段拦截事件
 
@@ -489,4 +492,489 @@ document.getElementById('clear-right').addEventListener('click', () => editorRig
 document.getElementById('format-right').addEventListener('click', () => formatJSON(editorRight));
 document.getElementById('copy-right').addEventListener('click', () => copyContent(editorRight));
 document.getElementById('search-right').addEventListener('click', () => editorRight.execCommand('find'));
+
+// ==================== JSON 深度结构化对比引擎 ====================
+
+let isDiffMode = false;
+let diffSyncCleanup = null;
+let diffTextMarks = [];
+let diffBookmarks = [];
+
+// --- 预处理：递归排序键名 (A-Z字典序, Rule 4) ---
+function sortObjectKeys(obj) {
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(sortObjectKeys);
+    const sorted = {};
+    Object.keys(obj).sort((a, b) => a.localeCompare(b)).forEach(key => {
+        sorted[key] = sortObjectKeys(obj[key]);
+    });
+    return sorted;
+}
+
+// --- 核心：深度结构化对比算法 ---
+function deepCompare(oldVal, newVal) {
+    if (oldVal === undefined && newVal === undefined) return { status: 'unchanged' };
+    if (oldVal === undefined) return { status: 'added', newValue: newVal };
+    if (newVal === undefined) return { status: 'removed', oldValue: oldVal };
+
+    if (oldVal === null && newVal === null) return { status: 'unchanged' };
+    if (oldVal === null || newVal === null) return { status: 'modified', oldValue: oldVal, newValue: newVal };
+
+    // 强类型敏感 (Rule 5): typeof 不同即为修改
+    const oldIsArr = Array.isArray(oldVal);
+    const newIsArr = Array.isArray(newVal);
+    if (typeof oldVal !== typeof newVal || oldIsArr !== newIsArr) {
+        return { status: 'modified', oldValue: oldVal, newValue: newVal };
+    }
+
+    if (oldIsArr) return deepCompareArrays(oldVal, newVal);
+    if (typeof oldVal === 'object') return deepCompareObjects(oldVal, newVal);
+
+    // 原始值严格相等
+    if (oldVal === newVal) return { status: 'unchanged' };
+    return { status: 'modified', oldValue: oldVal, newValue: newVal };
+}
+
+function deepCompareObjects(oldObj, newObj) {
+    const allKeys = new Set([...Object.keys(oldObj), ...Object.keys(newObj)]);
+    const sortedKeys = [...allKeys].sort((a, b) => a.localeCompare(b));
+    const children = {};
+    let hasChanges = false;
+
+    for (const key of sortedKeys) {
+        const inOld = key in oldObj;
+        const inNew = key in newObj;
+        if (!inOld) {
+            children[key] = { status: 'added', newValue: newObj[key] };
+            hasChanges = true;
+        } else if (!inNew) {
+            children[key] = { status: 'removed', oldValue: oldObj[key] };
+            hasChanges = true;
+        } else {
+            children[key] = deepCompare(oldObj[key], newObj[key]);
+            if (children[key].status !== 'unchanged') hasChanges = true;
+        }
+    }
+    return { type: 'object', status: hasChanges ? 'modified' : 'unchanged', children };
+}
+
+function deepCompareArrays(oldArr, newArr) {
+    const maxLen = Math.max(oldArr.length, newArr.length);
+    const children = [];
+    let hasChanges = false;
+
+    for (let i = 0; i < maxLen; i++) {
+        if (i >= oldArr.length) {
+            children.push({ status: 'added', newValue: newArr[i] });
+            hasChanges = true;
+        } else if (i >= newArr.length) {
+            children.push({ status: 'removed', oldValue: oldArr[i] });
+            hasChanges = true;
+        } else {
+            const child = deepCompare(oldArr[i], newArr[i]);
+            children.push(child);
+            if (child.status !== 'unchanged') hasChanges = true;
+        }
+    }
+    return { type: 'array', status: hasChanges ? 'modified' : 'unchanged', children };
+}
+
+// --- 字符级差异：查找行内首尾公共区间，锁定中间差异段 ---
+function computeInlineCharDiff(oldLine, newLine) {
+    let prefixLen = 0;
+    const minLen = Math.min(oldLine.length, newLine.length);
+    while (prefixLen < minLen && oldLine[prefixLen] === newLine[prefixLen]) prefixLen++;
+
+    let suffixLen = 0;
+    while (suffixLen < (minLen - prefixLen) &&
+           oldLine[oldLine.length - 1 - suffixLen] === newLine[newLine.length - 1 - suffixLen]) suffixLen++;
+
+    return {
+        left:  { from: prefixLen, to: oldLine.length  - suffixLen },
+        right: { from: prefixLen, to: newLine.length - suffixLen }
+    };
+}
+
+// --- 对齐渲染器：根据 Diff 树同步生成左右两侧行文本 + 行注解 ---
+function generateAlignedDiff(oldSorted, newSorted, diffTree, tabSize) {
+    const leftLines = [], rightLines = [], leftAnno = [], rightAnno = [];
+    const charDiffs = {};
+
+    const ind = (d) => ' '.repeat(d * tabSize);
+
+    function push(lt, rt, la, ra) {
+        const idx = leftLines.length;
+        leftLines.push(lt);
+        rightLines.push(rt);
+        leftAnno.push(la);
+        rightAnno.push(ra);
+        return idx;
+    }
+
+    // 将任意 JSON 值（已排序）展平为带缩进的多行文本
+    function valueToLines(val, depth, keyStr, isLast) {
+        const comma = isLast ? '' : ',';
+        const prefix = keyStr !== null ? (ind(depth) + JSON.stringify(keyStr) + ': ') : ind(depth);
+
+        if (val === null || typeof val !== 'object') {
+            return [prefix + JSON.stringify(val) + comma];
+        }
+
+        const isArr = Array.isArray(val);
+        const open = isArr ? '[' : '{';
+        const close = isArr ? ']' : '}';
+
+        if ((isArr && val.length === 0) || (!isArr && Object.keys(val).length === 0)) {
+            return [prefix + open + close + comma];
+        }
+
+        const lines = [prefix + open];
+        if (isArr) {
+            val.forEach((item, i) => {
+                lines.push(...valueToLines(item, depth + 1, null, i === val.length - 1));
+            });
+        } else {
+            const keys = Object.keys(val);
+            keys.forEach((k, i) => {
+                lines.push(...valueToLines(val[k], depth + 1, k, i === keys.length - 1));
+            });
+        }
+        lines.push(ind(depth) + close + comma);
+        return lines;
+    }
+
+    // 核心递归：同步遍历 Diff 树，生成左右对齐行
+    function walkValue(diff, oldVal, newVal, depth, keyStr, isLast) {
+        const comma = isLast ? '' : ',';
+        const prefix = keyStr !== null ? (ind(depth) + JSON.stringify(keyStr) + ': ') : ind(depth);
+
+        // ---- 完全一致 ----
+        if (diff.status === 'unchanged') {
+            valueToLines(oldVal, depth, keyStr, isLast).forEach(l => push(l, l, 'unchanged', 'unchanged'));
+            return;
+        }
+
+        // ---- 新增：左侧垫空、右侧绿底 ----
+        if (diff.status === 'added') {
+            valueToLines(newVal, depth, keyStr, isLast).forEach(l => push('', l, 'spacer', 'added'));
+            return;
+        }
+
+        // ---- 删除：左侧红底、右侧垫空 ----
+        if (diff.status === 'removed') {
+            valueToLines(oldVal, depth, keyStr, isLast).forEach(l => push(l, '', 'removed', 'spacer'));
+            return;
+        }
+
+        // ---- 修改（容器：Object） ----
+        if (diff.type === 'object') {
+            push(prefix + '{', prefix + '{', 'unchanged', 'unchanged');
+            const childKeys = Object.keys(diff.children);
+            childKeys.forEach((k, idx) => {
+                const isLastChild = idx === childKeys.length - 1;
+                const childDiff = diff.children[k];
+                walkValue(childDiff, oldVal ? oldVal[k] : undefined, newVal ? newVal[k] : undefined, depth + 1, k, isLastChild);
+            });
+            push(ind(depth) + '}' + comma, ind(depth) + '}' + comma, 'unchanged', 'unchanged');
+            return;
+        }
+
+        // ---- 修改（容器：Array） ----
+        if (diff.type === 'array') {
+            push(prefix + '[', prefix + '[', 'unchanged', 'unchanged');
+            diff.children.forEach((childDiff, idx) => {
+                const isLastChild = idx === diff.children.length - 1;
+                const oldItem = (oldVal && idx < oldVal.length) ? oldVal[idx] : undefined;
+                const newItem = (newVal && idx < newVal.length) ? newVal[idx] : undefined;
+                walkValue(childDiff, oldItem, newItem, depth + 1, null, isLastChild);
+            });
+            push(ind(depth) + ']' + comma, ind(depth) + ']' + comma, 'unchanged', 'unchanged');
+            return;
+        }
+
+        // ---- 修改（叶子：原始值变化 或 类型变化） ----
+        // 当两侧都是单行原始值时，精确到字符级
+        const oldIsPrimitive = (oldVal === null || typeof oldVal !== 'object');
+        const newIsPrimitive = (newVal === null || typeof newVal !== 'object');
+
+        if (oldIsPrimitive && newIsPrimitive) {
+            const oldText = prefix + JSON.stringify(oldVal) + comma;
+            const newText = prefix + JSON.stringify(newVal) + comma;
+            const lineIdx = push(oldText, newText, 'modified', 'modified');
+            charDiffs[lineIdx] = computeInlineCharDiff(oldText, newText);
+        } else {
+            // 类型变化（如 数字 → 对象）：两侧各自展平，用 spacer 垫齐
+            const oldLines = valueToLines(oldVal, depth, keyStr, isLast);
+            const newLines = valueToLines(newVal, depth, keyStr, isLast);
+            const maxLen = Math.max(oldLines.length, newLines.length);
+            for (let i = 0; i < maxLen; i++) {
+                push(
+                    i < oldLines.length ? oldLines[i] : '',
+                    i < newLines.length ? newLines[i] : '',
+                    i < oldLines.length ? 'modified' : 'spacer',
+                    i < newLines.length ? 'modified' : 'spacer'
+                );
+            }
+        }
+    }
+
+    walkValue(diffTree, oldSorted, newSorted, 0, null, true);
+    return { leftLines, rightLines, leftAnno, rightAnno, charDiffs };
+}
+
+// --- 清除所有 Diff 视觉标记 ---
+function clearDiffMarks() {
+    diffTextMarks.forEach(m => m.clear());
+    diffTextMarks = [];
+    diffBookmarks.forEach(b => b.clear());
+    diffBookmarks = [];
+
+    [editorLeft, editorRight].forEach(cm => {
+        for (let i = 0; i < cm.lineCount(); i++) {
+            cm.removeLineClass(i, 'background');
+            cm.removeLineClass(i, 'wrap');
+            cm.setGutterMarker(i, 'diff-gutter', null);
+        }
+    });
+}
+
+// --- 右侧差异框体：找到连续变更行，加上包围边框 ---
+function applyRightBorders(rightAnno) {
+    let blockStart = -1;
+    const flush = (end) => {
+        if (blockStart < 0) return;
+        for (let j = blockStart; j <= end; j++) {
+            editorRight.addLineClass(j, 'wrap', 'diff-block-side');
+            if (j === blockStart) editorRight.addLineClass(j, 'wrap', 'diff-block-top');
+            if (j === end) editorRight.addLineClass(j, 'wrap', 'diff-block-bottom');
+        }
+        blockStart = -1;
+    };
+
+    for (let i = 0; i < rightAnno.length; i++) {
+        const changed = (rightAnno[i] !== 'unchanged');
+        if (changed) { if (blockStart < 0) blockStart = i; }
+        else { flush(i - 1); }
+    }
+    flush(rightAnno.length - 1);
+}
+
+// --- 右侧行号 Gutter 标记 ---
+function applyGutterMarkers(rightAnno) {
+    for (let i = 0; i < rightAnno.length; i++) {
+        const t = rightAnno[i];
+        if (t === 'added' || t === 'modified') {
+            const el = document.createElement('div');
+            el.className = 'diff-gutter-dot diff-gutter-' + t;
+            el.textContent = '●';
+            editorRight.setGutterMarker(i, 'diff-gutter', el);
+        } else if (t === 'spacer') {
+            // 右侧 spacer 意味着左侧存在删除
+            const el = document.createElement('div');
+            el.className = 'diff-gutter-dot diff-gutter-removed';
+            el.textContent = '●';
+            editorRight.setGutterMarker(i, 'diff-gutter', el);
+        }
+    }
+}
+
+// --- 应用完整 Diff 渲染 ---
+function applyDiffToEditors(result) {
+    const { leftLines, rightLines, leftAnno, rightAnno, charDiffs } = result;
+
+    clearDiffMarks();
+
+    // 为右侧编辑器加入 diff-gutter 列
+    editorRight.setOption('gutters', ['CodeMirror-linenumbers', 'CodeMirror-foldgutter', 'diff-gutter']);
+
+    editorLeft.setValue(leftLines.join('\n'));
+    editorRight.setValue(rightLines.join('\n'));
+
+    // 行级背景色
+    for (let i = 0; i < leftAnno.length; i++) {
+        if (leftAnno[i] === 'modified') editorLeft.addLineClass(i, 'background', 'diff-line-modified');
+        else if (leftAnno[i] === 'removed') editorLeft.addLineClass(i, 'background', 'diff-line-removed');
+        else if (leftAnno[i] === 'spacer') editorLeft.addLineClass(i, 'background', 'diff-line-spacer');
+
+        if (rightAnno[i] === 'modified') editorRight.addLineClass(i, 'background', 'diff-line-modified');
+        else if (rightAnno[i] === 'added') editorRight.addLineClass(i, 'background', 'diff-line-added');
+        else if (rightAnno[i] === 'spacer') editorRight.addLineClass(i, 'background', 'diff-line-spacer');
+    }
+
+    // 字符级高亮（仅在右侧加边框，左侧加柔和背景）
+    Object.keys(charDiffs).forEach(lineStr => {
+        const i = parseInt(lineStr);
+        const cd = charDiffs[i];
+        if (cd.left.from < cd.left.to) {
+            diffTextMarks.push(editorLeft.markText(
+                { line: i, ch: cd.left.from }, { line: i, ch: cd.left.to },
+                { className: 'diff-char-old' }
+            ));
+        }
+        if (cd.right.from < cd.right.to) {
+            diffTextMarks.push(editorRight.markText(
+                { line: i, ch: cd.right.from }, { line: i, ch: cd.right.to },
+                { className: 'diff-char-new' }
+            ));
+        }
+    });
+
+    // 右侧框体边框
+    applyRightBorders(rightAnno);
+    // 右侧 Gutter 标记
+    applyGutterMarkers(rightAnno);
+}
+
+// --- 折叠透视徽章：在右侧折叠行末尾显示差异类型小圆点 ---
+function updateDiffBadges() {
+    if (!isDiffMode) return;
+
+    diffBookmarks.forEach(b => b.clear());
+    diffBookmarks = [];
+
+    const cm = editorRight;
+    const rightAnno = window._diffRightAnno;
+    const leftAnno = window._diffLeftAnno;
+    if (!rightAnno) return;
+
+    for (let i = 0; i < cm.lineCount(); i++) {
+        const marks = cm.findMarksAt(CodeMirror.Pos(i, 0));
+        const foldMark = marks.find(m => m.__isFold);
+        if (!foldMark) continue;
+
+        const range = foldMark.find();
+        if (!range) continue;
+
+        const types = new Set();
+        for (let j = range.from.line; j <= range.to.line; j++) {
+            if (rightAnno[j] === 'added') types.add('added');
+            else if (rightAnno[j] === 'modified') types.add('modified');
+            else if (rightAnno[j] === 'spacer' && leftAnno[j] === 'removed') types.add('removed');
+        }
+        if (types.size === 0) continue;
+
+        const badge = document.createElement('span');
+        badge.className = 'diff-badge-container';
+        for (const t of ['added', 'removed', 'modified']) {
+            if (types.has(t)) {
+                const dot = document.createElement('span');
+                dot.className = 'diff-badge-dot diff-badge-' + t;
+                badge.appendChild(dot);
+            }
+        }
+
+        const lineText = cm.getLine(i) || '';
+        const bm = cm.setBookmark(CodeMirror.Pos(i, lineText.length), { widget: badge, insertLeft: true });
+        diffBookmarks.push(bm);
+    }
+}
+
+// --- 双边同步系统（滚动同步 + 折叠镜像 + 徽章更新） ---
+function enableDiffSync() {
+    if (diffSyncCleanup) diffSyncCleanup();
+
+    let syncing = false;
+
+    const onScrollLeft = () => {
+        if (syncing) return; syncing = true;
+        const s = editorLeft.getScrollInfo();
+        editorRight.scrollTo(s.left, s.top);
+        syncing = false;
+    };
+    const onScrollRight = () => {
+        if (syncing) return; syncing = true;
+        const s = editorRight.getScrollInfo();
+        editorLeft.scrollTo(s.left, s.top);
+        syncing = false;
+    };
+
+    const onFoldLeft = (cm, from) => {
+        if (syncing) return; syncing = true;
+        editorRight.foldCode(CodeMirror.Pos(from.line, 0), null, 'fold');
+        setTimeout(updateDiffBadges, 0);
+        syncing = false;
+    };
+    const onUnfoldLeft = (cm, from) => {
+        if (syncing) return; syncing = true;
+        editorRight.foldCode(CodeMirror.Pos(from.line, 0), null, 'unfold');
+        setTimeout(updateDiffBadges, 0);
+        syncing = false;
+    };
+    const onFoldRight = (cm, from) => {
+        if (syncing) return; syncing = true;
+        editorLeft.foldCode(CodeMirror.Pos(from.line, 0), null, 'fold');
+        setTimeout(updateDiffBadges, 0);
+        syncing = false;
+    };
+    const onUnfoldRight = (cm, from) => {
+        if (syncing) return; syncing = true;
+        editorLeft.foldCode(CodeMirror.Pos(from.line, 0), null, 'unfold');
+        setTimeout(updateDiffBadges, 0);
+        syncing = false;
+    };
+
+    editorLeft.on('scroll', onScrollLeft);
+    editorRight.on('scroll', onScrollRight);
+    editorLeft.on('fold', onFoldLeft);
+    editorLeft.on('unfold', onUnfoldLeft);
+    editorRight.on('fold', onFoldRight);
+    editorRight.on('unfold', onUnfoldRight);
+
+    diffSyncCleanup = () => {
+        editorLeft.off('scroll', onScrollLeft);
+        editorRight.off('scroll', onScrollRight);
+        editorLeft.off('fold', onFoldLeft);
+        editorLeft.off('unfold', onUnfoldLeft);
+        editorRight.off('fold', onFoldRight);
+        editorRight.off('unfold', onUnfoldRight);
+        diffSyncCleanup = null;
+    };
+}
+
+// --- 入口：执行比对 ---
+function runCompare() {
+    const leftText = editorLeft.getValue().trim();
+    const rightText = editorRight.getValue().trim();
+
+    if (!leftText || !rightText) {
+        alert('请在两侧面板中分别粘贴需要比对的 JSON 数据');
+        return;
+    }
+
+    let leftObj, rightObj;
+    try { leftObj = JSON.parse(leftText); }
+    catch (e) { alert('左侧 JSON 解析失败：\n' + e.message); return; }
+    try { rightObj = JSON.parse(rightText); }
+    catch (e) { alert('右侧 JSON 解析失败：\n' + e.message); return; }
+
+    // 步骤1: 递归键名排序 (Rule 4)
+    const oldSorted = sortObjectKeys(leftObj);
+    const newSorted = sortObjectKeys(rightObj);
+
+    // 步骤2: 深度结构对比
+    const diffTree = deepCompare(oldSorted, newSorted);
+
+    // 步骤3: 生成对齐行输出
+    const result = generateAlignedDiff(oldSorted, newSorted, diffTree, currentTabSize);
+
+    // 存储注解供徽章系统读取
+    window._diffRightAnno = result.rightAnno;
+    window._diffLeftAnno = result.leftAnno;
+
+    // 步骤4: 渲染到编辑器
+    isDiffMode = true;
+    applyDiffToEditors(result);
+
+    // 步骤5: 启用双边同步
+    enableDiffSync();
+
+    // 步骤6: 折叠到第一级 (Rule 8)
+    foldToLevel(editorLeft, 1);
+    foldToLevel(editorRight, 1);
+
+    // 步骤7: 更新折叠透视徽章
+    setTimeout(updateDiffBadges, 50);
+}
+
+document.getElementById('compare-btn').addEventListener('click', runCompare);
 
