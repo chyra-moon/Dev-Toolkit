@@ -508,16 +508,48 @@ function foldToLevel(cm, level) {
 
 // === 工具栏按钮功能实现 ===
 
-// 格式化功能
-function formatJSON(editor) {
-    try {
-        const val = editor.getValue();
-        if (!val.trim()) return;
-        const obj = JSON.parse(val);
-        editor.setValue(JSON.stringify(obj, null, currentTabSize));
-    } catch (e) {
-        alert('格式化失败，请检查 JSON 语法是否正确\n' + e.message);
+// 格式化功能（带智能容错：解析失败时自动检测问题并提供修复）
+function formatJSON(editor, callback) {
+    var val = editor.getValue();
+    if (!val.trim()) { if (callback) callback(false); return; }
+
+    var result = tryParse(val);
+    if (result.ok) {
+        editor.setValue(JSON.stringify(result.val, null, currentTabSize));
+        if (callback) callback(true);
+        return;
     }
+
+    // 解析失败 → 检测问题
+    var issues = detectJsonIssues(val);
+    if (issues.fixes.length === 0) {
+        alert('格式化失败，请检查 JSON 语法是否正确\n' + result.err);
+        if (callback) callback(false);
+        return;
+    }
+
+    // 高亮问题位置
+    var markers = [];
+    highlightIssues(editor, issues.positions, markers);
+
+    // 构建报告
+    var side = (editor === editorLeft) ? '左侧' : '右侧';
+    var lines = ['【' + side + '】检测到以下问题：'];
+    issues.fixes.forEach(function(f) { lines.push('  · ' + f.name + ' × ' + f.count); });
+
+    showFixConfirmDialog(lines.join('\n'), function(accepted) {
+        markers.forEach(function(m) { m.clear(); });
+        if (!accepted) { if (callback) callback(false); return; }
+
+        var fixResult = tryParse(issues.fixed);
+        if (!fixResult.ok) {
+            alert(side + '修复后仍然无法解析：\n' + fixResult.err);
+            if (callback) callback(false);
+            return;
+        }
+        editor.setValue(JSON.stringify(fixResult.val, null, currentTabSize));
+        if (callback) callback(true);
+    });
 }
 
 // 复制功能
@@ -1355,58 +1387,25 @@ function runCompare() {
         return;
     }
 
-    // 先尝试直接解析
-    var leftOk = tryParse(leftText);
-    var rightOk = tryParse(rightText);
+    // 先格式化两边（含智能容错），全部成功后再执行对比
+    smartFormatThenCompare();
+}
 
-    if (leftOk.ok && rightOk.ok) {
-        executeCompare(leftOk.val, rightOk.val);
-        return;
-    }
+// 依次格式化左右两侧，全部成功后执行对比
+function smartFormatThenCompare() {
+    formatJSON(editorLeft, function(leftOk) {
+        if (!leftOk) return;
+        formatJSON(editorRight, function(rightOk) {
+            if (!rightOk) return;
 
-    // 解析失败 → 智能容错检测
-    var leftIssues = leftOk.ok ? null : detectJsonIssues(leftText);
-    var rightIssues = rightOk.ok ? null : detectJsonIssues(rightText);
+            var leftObj, rightObj;
+            try { leftObj = JSON.parse(editorLeft.getValue()); }
+            catch(e) { alert('左侧 JSON 解析失败：\n' + e.message); return; }
+            try { rightObj = JSON.parse(editorRight.getValue()); }
+            catch(e) { alert('右侧 JSON 解析失败：\n' + e.message); return; }
 
-    // 无可修复问题 → 直接报原始错误
-    if (leftIssues && leftIssues.fixes.length === 0) {
-        alert('左侧 JSON 解析失败：\n' + leftOk.err);
-        return;
-    }
-    if (rightIssues && rightIssues.fixes.length === 0) {
-        alert('右侧 JSON 解析失败：\n' + rightOk.err);
-        return;
-    }
-
-    // 高亮问题位置
-    var markers = [];
-    if (leftIssues) highlightIssues(editorLeft, leftIssues.positions, markers);
-    if (rightIssues) highlightIssues(editorRight, rightIssues.positions, markers);
-
-    // 构建统一的问题报告
-    var report = buildIssueReport(leftIssues, rightIssues);
-
-    showFixConfirmDialog(report, function(accepted) {
-        // 不管用户选什么，先清除红色高亮
-        markers.forEach(function(m) { m.clear(); });
-
-        if (!accepted) return;
-
-        // 应用修复
-        var fixedLeft = leftIssues ? leftIssues.fixed : leftText;
-        var fixedRight = rightIssues ? rightIssues.fixed : rightText;
-
-        var leftResult = tryParse(fixedLeft);
-        var rightResult = tryParse(fixedRight);
-
-        if (!leftResult.ok) { alert('左侧修复后仍然无法解析：\n' + leftResult.err); return; }
-        if (!rightResult.ok) { alert('右侧修复后仍然无法解析：\n' + rightResult.err); return; }
-
-        // 将修复后的文本回写编辑器（让用户看到干净的数据）
-        if (leftIssues) editorLeft.setValue(fixedLeft);
-        if (rightIssues) editorRight.setValue(fixedRight);
-
-        executeCompare(leftResult.val, rightResult.val);
+            executeCompare(leftObj, rightObj);
+        });
     });
 }
 
@@ -1519,21 +1518,6 @@ function highlightIssues(cm, positions, markers) {
             }
         }
     });
-}
-
-// 构建问题报告文本
-function buildIssueReport(leftIssues, rightIssues) {
-    var lines = [];
-    if (leftIssues && leftIssues.fixes.length > 0) {
-        lines.push('【左侧】检测到以下问题：');
-        leftIssues.fixes.forEach(function(f) { lines.push('  · ' + f.name + ' × ' + f.count); });
-    }
-    if (rightIssues && rightIssues.fixes.length > 0) {
-        if (lines.length > 0) lines.push('');
-        lines.push('【右侧】检测到以下问题：');
-        rightIssues.fixes.forEach(function(f) { lines.push('  · ' + f.name + ' × ' + f.count); });
-    }
-    return lines.join('\n');
 }
 
 // 确认对话框
