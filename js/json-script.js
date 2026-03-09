@@ -390,17 +390,17 @@ window.addEventListener('keydown', (e) => {
         e.preventDefault(); 
         e.stopPropagation();
         foldToLevel(editorLeft, 1); foldToLevel(editorRight, 1);
-        if (isDiffMode) setTimeout(updateDiffBadges, 50);
+        if (isDiffMode) scheduleBadgeUpdate();
     } else if (checkShortcut(shortcuts.lv2)) {
         e.preventDefault(); 
         e.stopPropagation();
         foldToLevel(editorLeft, 2); foldToLevel(editorRight, 2);
-        if (isDiffMode) setTimeout(updateDiffBadges, 50);
+        if (isDiffMode) scheduleBadgeUpdate();
     } else if (checkShortcut(shortcuts.unfold)) {
         e.preventDefault();
         e.stopPropagation();
         unfoldAll(editorLeft); unfoldAll(editorRight);
-        if (isDiffMode) setTimeout(updateDiffBadges, 50);
+        if (isDiffMode) scheduleBadgeUpdate();
     }
 }, true); // <- 关键点：设置为 true，在捕获阶段拦截事件
 
@@ -814,65 +814,73 @@ function clearDiffMarks() {
     diffBookmarks = [];
 
     [editorLeft, editorRight].forEach(cm => {
-        for (let i = 0; i < cm.lineCount(); i++) {
-            cm.removeLineClass(i, 'background');
-            cm.removeLineClass(i, 'wrap');
-            cm.setGutterMarker(i, 'diff-gutter', null);
-        }
+        cm.operation(function() {
+            for (var i = 0; i < cm.lineCount(); i++) {
+                cm.removeLineClass(i, 'background');
+                cm.removeLineClass(i, 'wrap');
+                cm.setGutterMarker(i, 'diff-gutter', null);
+            }
+        });
     });
 }
 
 // --- 右侧差异框体：找到连续变更行，加上包围边框 ---
 function applyRightBorders(rightAnno) {
-    let blockStart = -1;
-    const flush = (end) => {
-        if (blockStart < 0) return;
-        for (let j = blockStart; j <= end; j++) {
-            editorRight.addLineClass(j, 'wrap', 'diff-block-side');
-            if (j === blockStart) editorRight.addLineClass(j, 'wrap', 'diff-block-top');
-            if (j === end) editorRight.addLineClass(j, 'wrap', 'diff-block-bottom');
-        }
-        blockStart = -1;
-    };
+    editorRight.operation(function() {
+        let blockStart = -1;
+        const flush = (end) => {
+            if (blockStart < 0) return;
+            for (let j = blockStart; j <= end; j++) {
+                editorRight.addLineClass(j, 'wrap', 'diff-block-side');
+                if (j === blockStart) editorRight.addLineClass(j, 'wrap', 'diff-block-top');
+                if (j === end) editorRight.addLineClass(j, 'wrap', 'diff-block-bottom');
+            }
+            blockStart = -1;
+        };
 
-    for (let i = 0; i < rightAnno.length; i++) {
-        const changed = (rightAnno[i] !== 'unchanged');
-        if (changed) { if (blockStart < 0) blockStart = i; }
-        else { flush(i - 1); }
-    }
-    flush(rightAnno.length - 1);
+        for (let i = 0; i < rightAnno.length; i++) {
+            const changed = (rightAnno[i] !== 'unchanged');
+            if (changed) { if (blockStart < 0) blockStart = i; }
+            else { flush(i - 1); }
+        }
+        flush(rightAnno.length - 1);
+    });
 }
 
 // --- 双侧行号 Gutter 标记 ---
 function applyGutterMarkers(leftAnno, rightAnno) {
-    for (let i = 0; i < rightAnno.length; i++) {
-        // 右侧 Gutter
-        const rt = rightAnno[i];
-        if (rt === 'added' || rt === 'modified') {
-            const el = document.createElement('div');
-            el.className = 'diff-gutter-dot diff-gutter-' + rt;
-            el.textContent = '●';
-            editorRight.setGutterMarker(i, 'diff-gutter', el);
-        } else if (rt === 'spacer') {
-            const el = document.createElement('div');
-            el.className = 'diff-gutter-dot diff-gutter-removed';
-            el.textContent = '●';
-            editorRight.setGutterMarker(i, 'diff-gutter', el);
-        }
-        // 左侧 Gutter
-        const lt = leftAnno[i];
-        if (lt === 'removed' || lt === 'modified') {
-            const el = document.createElement('div');
-            el.className = 'diff-gutter-dot diff-gutter-' + lt;
-            el.textContent = '●';
-            editorLeft.setGutterMarker(i, 'diff-gutter', el);
-        } else if (lt === 'spacer') {
-            const el = document.createElement('div');
-            el.className = 'diff-gutter-dot diff-gutter-added';
-            el.textContent = '●';
-            editorLeft.setGutterMarker(i, 'diff-gutter', el);
-        }
-    }
+    editorLeft.operation(function() {
+        editorRight.operation(function() {
+            for (var i = 0; i < rightAnno.length; i++) {
+                // 右侧 Gutter
+                var rt = rightAnno[i];
+                if (rt === 'added' || rt === 'modified') {
+                    var el = document.createElement('div');
+                    el.className = 'diff-gutter-dot diff-gutter-' + rt;
+                    el.textContent = '●';
+                    editorRight.setGutterMarker(i, 'diff-gutter', el);
+                } else if (rt === 'spacer') {
+                    var el = document.createElement('div');
+                    el.className = 'diff-gutter-dot diff-gutter-removed';
+                    el.textContent = '●';
+                    editorRight.setGutterMarker(i, 'diff-gutter', el);
+                }
+                // 左侧 Gutter
+                var lt = leftAnno[i];
+                if (lt === 'removed' || lt === 'modified') {
+                    var el2 = document.createElement('div');
+                    el2.className = 'diff-gutter-dot diff-gutter-' + lt;
+                    el2.textContent = '●';
+                    editorLeft.setGutterMarker(i, 'diff-gutter', el2);
+                } else if (lt === 'spacer') {
+                    var el2 = document.createElement('div');
+                    el2.className = 'diff-gutter-dot diff-gutter-added';
+                    el2.textContent = '●';
+                    editorLeft.setGutterMarker(i, 'diff-gutter', el2);
+                }
+            }
+        });
+    });
 }
 
 // --- 应用完整 Diff 渲染 ---
@@ -889,32 +897,41 @@ function applyDiffToEditors(result) {
     editorLeft.setValue(leftLines.join('\n'));
     editorRight.setValue(rightLines.join('\n'));
 
-    // 行级背景色
-    for (let i = 0; i < leftAnno.length; i++) {
-        if (leftAnno[i] === 'modified') editorLeft.addLineClass(i, 'background', 'diff-line-modified');
-        else if (leftAnno[i] === 'removed') editorLeft.addLineClass(i, 'background', 'diff-line-removed');
-        else if (leftAnno[i] === 'spacer') editorLeft.addLineClass(i, 'background', 'diff-line-spacer');
-
-        if (rightAnno[i] === 'modified') editorRight.addLineClass(i, 'background', 'diff-line-modified');
-        else if (rightAnno[i] === 'added') editorRight.addLineClass(i, 'background', 'diff-line-added');
-        else if (rightAnno[i] === 'spacer') editorRight.addLineClass(i, 'background', 'diff-line-spacer');
-    }
-
-    // 字符级高亮（仅在右侧加边框，左侧加柔和背景）
-    Object.keys(charDiffs).forEach(lineStr => {
-        const i = parseInt(lineStr);
-        const cd = charDiffs[i];
-        if (cd.left.from < cd.left.to) {
-            diffTextMarks.push(editorLeft.markText(
-                { line: i, ch: cd.left.from }, { line: i, ch: cd.left.to },
-                { className: 'diff-char-old' }
-            ));
+    // 批量应用行级背景色 + 字符级高亮（包在 operation 中避免逐行触发 DOM 重绘）
+    editorLeft.operation(function() {
+        for (var i = 0; i < leftAnno.length; i++) {
+            if (leftAnno[i] === 'modified') editorLeft.addLineClass(i, 'background', 'diff-line-modified');
+            else if (leftAnno[i] === 'removed') editorLeft.addLineClass(i, 'background', 'diff-line-removed');
+            else if (leftAnno[i] === 'spacer') editorLeft.addLineClass(i, 'background', 'diff-line-spacer');
         }
-        if (cd.right.from < cd.right.to) {
-            diffTextMarks.push(editorRight.markText(
-                { line: i, ch: cd.right.from }, { line: i, ch: cd.right.to },
-                { className: 'diff-char-new' }
-            ));
+        var charKeys = Object.keys(charDiffs);
+        for (var ci = 0; ci < charKeys.length; ci++) {
+            var idx = parseInt(charKeys[ci]);
+            var cd = charDiffs[idx];
+            if (cd.left.from < cd.left.to) {
+                diffTextMarks.push(editorLeft.markText(
+                    { line: idx, ch: cd.left.from }, { line: idx, ch: cd.left.to },
+                    { className: 'diff-char-old' }
+                ));
+            }
+        }
+    });
+    editorRight.operation(function() {
+        for (var i = 0; i < rightAnno.length; i++) {
+            if (rightAnno[i] === 'modified') editorRight.addLineClass(i, 'background', 'diff-line-modified');
+            else if (rightAnno[i] === 'added') editorRight.addLineClass(i, 'background', 'diff-line-added');
+            else if (rightAnno[i] === 'spacer') editorRight.addLineClass(i, 'background', 'diff-line-spacer');
+        }
+        var charKeys = Object.keys(charDiffs);
+        for (var ci = 0; ci < charKeys.length; ci++) {
+            var idx = parseInt(charKeys[ci]);
+            var cd = charDiffs[idx];
+            if (cd.right.from < cd.right.to) {
+                diffTextMarks.push(editorRight.markText(
+                    { line: idx, ch: cd.right.from }, { line: idx, ch: cd.right.to },
+                    { className: 'diff-char-new' }
+                ));
+            }
         }
     });
 
@@ -925,7 +942,14 @@ function applyDiffToEditors(result) {
 }
 
 // --- 折叠透视徽章：在右侧折叠行末尾显示差异类型小圆点 ---
+let _badgeTimer = null;
+function scheduleBadgeUpdate() {
+    if (_badgeTimer) clearTimeout(_badgeTimer);
+    _badgeTimer = setTimeout(updateDiffBadges, 30);
+}
+
 function updateDiffBadges() {
+    _badgeTimer = null;
     if (!isDiffMode) return;
 
     diffBookmarks.forEach(b => b.clear());
@@ -936,36 +960,41 @@ function updateDiffBadges() {
     const leftAnno = window._diffLeftAnno;
     if (!rightAnno) return;
 
-    for (let i = 0; i < cm.lineCount(); i++) {
-        const marks = cm.findMarksAt(CodeMirror.Pos(i, 0));
-        const foldMark = marks.find(m => m.__isFold);
-        if (!foldMark) continue;
-
-        const range = foldMark.find();
+    // 高性能路径：用 getAllMarks() 一次性拿到所有折叠标记，而非逐行 findMarksAt
+    const allMarks = cm.getAllMarks();
+    const foldLines = [];
+    for (var mi = 0; mi < allMarks.length; mi++) {
+        var mk = allMarks[mi];
+        if (!mk.__isFold) continue;
+        var range = mk.find();
         if (!range) continue;
-
-        const types = new Set();
-        for (let j = range.from.line; j <= range.to.line; j++) {
-            if (rightAnno[j] === 'added') types.add('added');
-            else if (rightAnno[j] === 'modified') types.add('modified');
-            else if (rightAnno[j] === 'spacer' && leftAnno[j] === 'removed') types.add('removed');
-        }
-        if (types.size === 0) continue;
-
-        const badge = document.createElement('span');
-        badge.className = 'diff-badge-container';
-        for (const t of ['added', 'removed', 'modified']) {
-            if (types.has(t)) {
-                const dot = document.createElement('span');
-                dot.className = 'diff-badge-dot diff-badge-' + t;
-                badge.appendChild(dot);
-            }
-        }
-
-        const lineText = cm.getLine(i) || '';
-        const bm = cm.setBookmark(CodeMirror.Pos(i, lineText.length), { widget: badge, insertLeft: true });
-        diffBookmarks.push(bm);
+        foldLines.push({ line: range.from.line, from: range.from.line, to: range.to.line });
     }
+
+    cm.operation(function() {
+        for (var fi = 0; fi < foldLines.length; fi++) {
+            var fl = foldLines[fi];
+            var types = 0; // bitmask: 1=added, 2=removed, 4=modified
+            for (var j = fl.from; j <= fl.to; j++) {
+                var ra = rightAnno[j];
+                if (ra === 'added') types |= 1;
+                else if (ra === 'modified') types |= 4;
+                else if (ra === 'spacer' && leftAnno[j] === 'removed') types |= 2;
+                if (types === 7) break; // 三种类型都有了，提前退出
+            }
+            if (types === 0) continue;
+
+            var badge = document.createElement('span');
+            badge.className = 'diff-badge-container';
+            if (types & 1) { var d = document.createElement('span'); d.className = 'diff-badge-dot diff-badge-added'; badge.appendChild(d); }
+            if (types & 2) { var d = document.createElement('span'); d.className = 'diff-badge-dot diff-badge-removed'; badge.appendChild(d); }
+            if (types & 4) { var d = document.createElement('span'); d.className = 'diff-badge-dot diff-badge-modified'; badge.appendChild(d); }
+
+            var lineText = cm.getLine(fl.line) || '';
+            var bm = cm.setBookmark(CodeMirror.Pos(fl.line, lineText.length), { widget: badge, insertLeft: true });
+            diffBookmarks.push(bm);
+        }
+    });
 }
 
 // --- 双边同步系统（滚动同步 + 折叠镜像 + 徽章更新） ---
@@ -990,25 +1019,25 @@ function enableDiffSync() {
     const onFoldLeft = (cm, from) => {
         if (syncing || suppressSync) return; syncing = true;
         editorRight.foldCode(CodeMirror.Pos(from.line, 0), isDiffMode ? diffBracketFold : null, 'fold');
-        setTimeout(updateDiffBadges, 0);
+        scheduleBadgeUpdate();
         syncing = false;
     };
     const onUnfoldLeft = (cm, from) => {
         if (syncing || suppressSync) return; syncing = true;
         editorRight.foldCode(CodeMirror.Pos(from.line, 0), null, 'unfold');
-        setTimeout(updateDiffBadges, 0);
+        scheduleBadgeUpdate();
         syncing = false;
     };
     const onFoldRight = (cm, from) => {
         if (syncing || suppressSync) return; syncing = true;
         editorLeft.foldCode(CodeMirror.Pos(from.line, 0), isDiffMode ? diffBracketFold : null, 'fold');
-        setTimeout(updateDiffBadges, 0);
+        scheduleBadgeUpdate();
         syncing = false;
     };
     const onUnfoldRight = (cm, from) => {
         if (syncing || suppressSync) return; syncing = true;
         editorLeft.foldCode(CodeMirror.Pos(from.line, 0), null, 'unfold');
-        setTimeout(updateDiffBadges, 0);
+        scheduleBadgeUpdate();
         syncing = false;
     };
 
@@ -1076,7 +1105,7 @@ function runCompare() {
     foldToLevel(editorRight, 1);
 
     // 步骤8: 更新折叠透视徽章
-    setTimeout(updateDiffBadges, 50);
+    scheduleBadgeUpdate();
 }
 
 document.getElementById('compare-btn').addEventListener('click', runCompare);
