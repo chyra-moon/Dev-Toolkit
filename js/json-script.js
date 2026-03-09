@@ -447,17 +447,20 @@ function diffBracketFold(cm, start) {
 
 function unfoldAll(cm) {
     if (!cm) return;
+    suppressSync = true;
     cm.operation(function() {
         for (var i = cm.firstLine(); i <= cm.lastLine(); i++) {
             cm.foldCode(CodeMirror.Pos(i, 0), null, "unfold");
         }
     });
+    suppressSync = false;
 }
 
 // 层级折叠辅助 (重构版：内→外顺序折叠，确保展开外层时内层折叠仍然保持)
 function foldToLevel(cm, level) {
     if (!cm) return;
 
+    suppressSync = true;
     cm.operation(function() {
         // Step 1: 先全部展开
         for (var i = cm.firstLine(); i <= cm.lastLine(); i++) {
@@ -500,6 +503,7 @@ function foldToLevel(cm, level) {
             cm.foldCode(CodeMirror.Pos(foldable[fi].line, 0), rf, "fold");
         }
     });
+    suppressSync = false;
 }
 
 // === 工具栏按钮功能实现 ===
@@ -547,6 +551,7 @@ let isDiffMode = false;
 let diffSyncCleanup = null;
 let diffTextMarks = [];
 let diffBookmarks = [];
+let suppressSync = false;
 
 // --- 预处理：递归排序键名 (A-Z字典序, Rule 4) ---
 function sortObjectKeys(obj) {
@@ -983,25 +988,25 @@ function enableDiffSync() {
     };
 
     const onFoldLeft = (cm, from) => {
-        if (syncing) return; syncing = true;
-        editorRight.foldCode(CodeMirror.Pos(from.line, 0), null, 'fold');
+        if (syncing || suppressSync) return; syncing = true;
+        editorRight.foldCode(CodeMirror.Pos(from.line, 0), isDiffMode ? diffBracketFold : null, 'fold');
         setTimeout(updateDiffBadges, 0);
         syncing = false;
     };
     const onUnfoldLeft = (cm, from) => {
-        if (syncing) return; syncing = true;
+        if (syncing || suppressSync) return; syncing = true;
         editorRight.foldCode(CodeMirror.Pos(from.line, 0), null, 'unfold');
         setTimeout(updateDiffBadges, 0);
         syncing = false;
     };
     const onFoldRight = (cm, from) => {
-        if (syncing) return; syncing = true;
-        editorLeft.foldCode(CodeMirror.Pos(from.line, 0), null, 'fold');
+        if (syncing || suppressSync) return; syncing = true;
+        editorLeft.foldCode(CodeMirror.Pos(from.line, 0), isDiffMode ? diffBracketFold : null, 'fold');
         setTimeout(updateDiffBadges, 0);
         syncing = false;
     };
     const onUnfoldRight = (cm, from) => {
-        if (syncing) return; syncing = true;
+        if (syncing || suppressSync) return; syncing = true;
         editorLeft.foldCode(CodeMirror.Pos(from.line, 0), null, 'unfold');
         setTimeout(updateDiffBadges, 0);
         syncing = false;

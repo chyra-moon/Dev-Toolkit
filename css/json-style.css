@@ -266,11 +266,27 @@ html[data-theme="dark"] .moon-icon { opacity: 0; transform: rotate(90deg) scale(
     padding: 0 1px;
 }
 
-/* --- 右侧差异区块边框 --- */
-.diff-block-side   { border-left: 2.5px solid rgba(59, 130, 246, 0.45) !important;
-                     border-right: 2.5px solid rgba(59, 130, 246, 0.45) !important; }
-.diff-block-top    { border-top: 2.5px solid rgba(59, 130, 246, 0.45) !important; }
-.diff-block-bottom { border-bottom: 2.5px solid rgba(59, 130, 246, 0.45) !important; }
+/* --- 右侧差异区块边框（使用 box-shadow inset 代替 border，避免影响行高导致左右垂直不对齐） --- */
+.diff-block-side {
+    box-shadow: inset 2.5px 0 0 rgba(59, 130, 246, 0.45),
+                inset -2.5px 0 0 rgba(59, 130, 246, 0.45) !important;
+}
+.diff-block-side.diff-block-top {
+    box-shadow: inset 2.5px 0 0 rgba(59, 130, 246, 0.45),
+                inset -2.5px 0 0 rgba(59, 130, 246, 0.45),
+                inset 0 2.5px 0 rgba(59, 130, 246, 0.45) !important;
+}
+.diff-block-side.diff-block-bottom {
+    box-shadow: inset 2.5px 0 0 rgba(59, 130, 246, 0.45),
+                inset -2.5px 0 0 rgba(59, 130, 246, 0.45),
+                inset 0 -2.5px 0 rgba(59, 130, 246, 0.45) !important;
+}
+.diff-block-side.diff-block-top.diff-block-bottom {
+    box-shadow: inset 2.5px 0 0 rgba(59, 130, 246, 0.45),
+                inset -2.5px 0 0 rgba(59, 130, 246, 0.45),
+                inset 0 2.5px 0 rgba(59, 130, 246, 0.45),
+                inset 0 -2.5px 0 rgba(59, 130, 246, 0.45) !important;
+}
 
 /* --- 右侧 Gutter 状态圆点 --- */
 .diff-gutter-dot {
