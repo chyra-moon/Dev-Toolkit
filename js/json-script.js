@@ -701,8 +701,14 @@ document.getElementById('format-right').addEventListener('click', () => formatJS
 document.getElementById('copy-right').addEventListener('click', () => copyContent(editorRight));
 document.getElementById('search-right').addEventListener('click', () => editorRight.execCommand('find'));
 
-// 单模式"格式化"主按钮
-document.getElementById('format-btn').addEventListener('click', () => formatJSON(editorLeft));
+// 主操作按钮（单模式=格式化，对比模式=执行比对）
+document.getElementById('action-btn').addEventListener('click', function() {
+    if ((document.documentElement.getAttribute('data-mode') || 'single') === 'single') {
+        formatJSON(editorLeft);
+    } else {
+        runCompare();
+    }
+});
 
 // ==================== 模式切换（单 JSON ↔ 对比） ====================
 (function initModeToggle() {
@@ -711,8 +717,7 @@ document.getElementById('format-btn').addEventListener('click', () => formatJSON
     const iconCompare = document.getElementById('icon-to-compare');
     const iconSingle = document.getElementById('icon-to-single');
     const pageTitle = document.getElementById('page-title');
-    const formatBtn = document.getElementById('format-btn');
-    const compareBtn = document.getElementById('compare-btn');
+    const actionBtn = document.getElementById('action-btn');
     const leftTitle = document.getElementById('left-panel-title');
     const rightPanel = document.querySelectorAll('.editor-panel')[1];
 
@@ -726,8 +731,7 @@ document.getElementById('format-btn').addEventListener('click', () => formatJSON
 
         // 切换标题与按钮
         pageTitle.textContent = isSingle ? 'JSON 格式化' : 'JSON 差异比对';
-        formatBtn.style.display = isSingle ? '' : 'none';
-        compareBtn.style.display = isSingle ? 'none' : '';
+        actionBtn.textContent = isSingle ? '格式化' : '执行比对';
         leftTitle.textContent = isSingle ? 'JSON 编辑器' : '源 JSON';
 
         // tooltip
@@ -1810,6 +1814,4 @@ function executeCompare(leftObj, rightObj) {
     // 步骤8: 更新折叠透视徽章
     scheduleBadgeUpdate();
 }
-
-document.getElementById('compare-btn').addEventListener('click', runCompare);
 
