@@ -701,6 +701,54 @@ document.getElementById('format-right').addEventListener('click', () => formatJS
 document.getElementById('copy-right').addEventListener('click', () => copyContent(editorRight));
 document.getElementById('search-right').addEventListener('click', () => editorRight.execCommand('find'));
 
+// 单模式"格式化"主按钮
+document.getElementById('format-btn').addEventListener('click', () => formatJSON(editorLeft));
+
+// ==================== 模式切换（单 JSON ↔ 对比） ====================
+(function initModeToggle() {
+    const htmlEl = document.documentElement;
+    const modeBtn = document.getElementById('mode-toggle');
+    const iconCompare = document.getElementById('icon-to-compare');
+    const iconSingle = document.getElementById('icon-to-single');
+    const pageTitle = document.getElementById('page-title');
+    const formatBtn = document.getElementById('format-btn');
+    const compareBtn = document.getElementById('compare-btn');
+    const leftTitle = document.getElementById('left-panel-title');
+    const rightPanel = document.querySelectorAll('.editor-panel')[1];
+
+    function setMode(mode) {
+        htmlEl.setAttribute('data-mode', mode);
+        const isSingle = mode === 'single';
+
+        // 切换图标
+        iconCompare.style.display = isSingle ? '' : 'none';
+        iconSingle.style.display = isSingle ? 'none' : '';
+
+        // 切换标题与按钮
+        pageTitle.textContent = isSingle ? 'JSON 格式化' : 'JSON 差异比对';
+        formatBtn.style.display = isSingle ? '' : 'none';
+        compareBtn.style.display = isSingle ? 'none' : '';
+        leftTitle.textContent = isSingle ? 'JSON 编辑器' : '源 JSON';
+
+        // tooltip
+        modeBtn.title = isSingle ? '切换到对比模式' : '切换到单 JSON 模式';
+
+        // 动画结束后刷新编辑器尺寸
+        setTimeout(function() {
+            editorLeft.refresh();
+            if (!isSingle) editorRight.refresh();
+        }, 460);
+    }
+
+    modeBtn.addEventListener('click', function() {
+        var current = htmlEl.getAttribute('data-mode') || 'single';
+        setMode(current === 'single' ? 'compare' : 'single');
+    });
+
+    // 初始化为单模式
+    setMode('single');
+})();
+
 // ==================== JSON 深度结构化对比引擎 ====================
 
 let isDiffMode = false;
