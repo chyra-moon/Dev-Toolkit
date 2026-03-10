@@ -1533,7 +1533,8 @@ function detectJsonIssues(text) {
         '\uff0c': ',', '\uff1a': ':', '\uff1b': ';',
         '\u201c': '"', '\u201d': '"', '\u2018': "'", '\u2019': "'",
         '\u3000': ' ', '\uff08': '(', '\uff09': ')',
-        '\uff3b': '[', '\uff3d': ']', '\uff5b': '{', '\uff5d': '}'
+        '\uff3b': '[', '\uff3d': ']', '\uff5b': '{', '\uff5d': '}',
+        '\u3010': '[', '\u3011': ']'
     };
     var cnKeys = Object.keys(cnPuncMap);
     var cnRe = new RegExp('[' + cnKeys.join('') + ']', 'g');
