@@ -509,9 +509,24 @@ function foldToLevel(cm, level) {
 // === 工具栏按钮功能实现 ===
 
 // 格式化功能（带智能容错：解析失败时自动检测问题并提供修复）
+// 当前活跃的问题通知条状态（用于清理）
+var _activeIssueBar = null;
+
+function dismissIssueBar() {
+    if (!_activeIssueBar) return;
+    _activeIssueBar.markers.forEach(function(m) { m.clear(); });
+    if (_activeIssueBar.barEl && _activeIssueBar.barEl.parentNode) {
+        _activeIssueBar.barEl.remove();
+    }
+    _activeIssueBar = null;
+}
+
 function formatJSON(editor, callback) {
     var val = editor.getValue();
     if (!val.trim()) { if (callback) callback(false); return; }
+
+    // 先清除上一次的通知条和标记
+    dismissIssueBar();
 
     var result = tryParse(val);
     if (result.ok) {
@@ -530,41 +545,94 @@ function formatJSON(editor, callback) {
 
     // 区分可自动修复的 vs 仅标记的
     var autoFixable = issues.fixes.filter(function(f) { return !f.manualOnly; });
-    var manualOnly = issues.fixes.filter(function(f) { return f.manualOnly; });
 
     // 高亮问题位置
     var markers = [];
     highlightIssues(editor, issues.positions, markers);
 
-    // 构建报告
+    // 构建摘要文本
     var side = (editor === editorLeft) ? '左侧' : '右侧';
-    var lines = ['【' + side + '】检测到以下问题：'];
-    issues.fixes.forEach(function(f) { lines.push('  · ' + f.name + ' × ' + f.count); });
+    var summary = '【' + side + '】';
+    summary += issues.fixes.map(function(f) { return f.name + ' ×' + f.count; }).join('，');
 
-    if (autoFixable.length > 0) {
-        // 有可修复项 → 弹修复确认对话框
-        showFixConfirmDialog(lines.join('\n'), function(accepted) {
+    // 显示浮动通知条
+    showIssueBar(editor, summary, autoFixable.length > 0, markers, issues, callback);
+}
+
+function showIssueBar(editor, summary, hasAutoFix, markers, issues, callback) {
+    // 找到编辑器对应的面板容器
+    var cmEl = editor.getWrapperElement();
+    var panel = cmEl.closest('.editor-panel');
+    if (!panel) panel = cmEl.parentElement;
+
+    // 创建通知条
+    var bar = document.createElement('div');
+    bar.className = 'issue-bar';
+
+    var textSpan = document.createElement('span');
+    textSpan.className = 'issue-bar-text';
+    textSpan.textContent = summary;
+    bar.appendChild(textSpan);
+
+    var btnGroup = document.createElement('span');
+    btnGroup.className = 'issue-bar-btns';
+
+    if (hasAutoFix) {
+        var fixBtn = document.createElement('button');
+        fixBtn.className = 'issue-bar-fix-btn';
+        fixBtn.textContent = '自动修复';
+        fixBtn.addEventListener('click', function() {
+            // 清除当前标记
             markers.forEach(function(m) { m.clear(); });
-            if (!accepted) { if (callback) callback(false); return; }
+            markers.length = 0;
 
             var fixResult = tryParse(issues.fixed);
             if (!fixResult.ok) {
-                alert(side + '修复后仍然无法解析：\n' + fixResult.err);
+                // 修复后仍失败 → 回写修复后文本，重新检测剩余问题
+                editor.setValue(issues.fixed);
+                var remaining = detectJsonIssues(issues.fixed);
+                if (remaining.fixes.length > 0) {
+                    highlightIssues(editor, remaining.positions, markers);
+                    var side = (editor === editorLeft) ? '左侧' : '右侧';
+                    textSpan.textContent = '【' + side + '】已修复部分问题，剩余：' +
+                        remaining.fixes.map(function(f) { return f.name + ' ×' + f.count; }).join('，');
+                    fixBtn.style.display = 'none';
+                } else {
+                    alert('修复后仍然无法解析，请手动检查');
+                    dismissIssueBar();
+                }
                 if (callback) callback(false);
                 return;
             }
+
             editor.setValue(JSON.stringify(fixResult.val, null, currentTabSize));
+            dismissIssueBar();
             if (callback) callback(true);
         });
-    } else {
-        // 只有手动修复项 → 弹纯提示，无"修复并对比"按钮
-        lines.push('');
-        lines.push('以上问题需要手动修正，无法自动修复。');
-        showInfoDialog(lines.join('\n'), function() {
-            markers.forEach(function(m) { m.clear(); });
-            if (callback) callback(false);
-        });
+        btnGroup.appendChild(fixBtn);
     }
+
+    var dismissBtn = document.createElement('button');
+    dismissBtn.className = 'issue-bar-dismiss-btn';
+    dismissBtn.textContent = '×';
+    dismissBtn.title = '关闭';
+    dismissBtn.addEventListener('click', function() {
+        dismissIssueBar();
+        if (callback) callback(false);
+    });
+    btnGroup.appendChild(dismissBtn);
+
+    bar.appendChild(btnGroup);
+
+    // 插入到面板顶部（toolbar 下方）
+    var toolbar = panel.querySelector('.panel-toolbar');
+    if (toolbar && toolbar.nextSibling) {
+        panel.insertBefore(bar, toolbar.nextSibling);
+    } else {
+        panel.appendChild(bar);
+    }
+
+    _activeIssueBar = { barEl: bar, markers: markers };
 }
 
 // 复制功能
@@ -1572,75 +1640,6 @@ function highlightIssues(cm, positions, markers) {
             }
         }
     });
-}
-
-// 确认对话框
-function showFixConfirmDialog(report, callback) {
-    // 移除旧对话框
-    var old = document.getElementById('fix-confirm-dialog');
-    if (old) old.remove();
-
-    var overlay = document.createElement('div');
-    overlay.id = 'fix-confirm-dialog';
-    overlay.className = 'modal-overlay';
-    overlay.style.display = 'flex';
-
-    overlay.innerHTML =
-        '<div class="modal" style="max-width:480px;">' +
-            '<div class="modal-header">JSON 格式问题检测</div>' +
-            '<div class="modal-body" style="padding:20px;">' +
-                '<pre class="fix-report-text">' + escapeHtml(report) + '</pre>' +
-                '<p style="margin-top:14px;color:var(--text-secondary);font-size:13px;">是否自动修复以上问题并继续对比？</p>' +
-            '</div>' +
-            '<div class="modal-footer" style="gap:10px;">' +
-                '<button class="secondary-btn" id="fix-cancel-btn">取消</button>' +
-                '<button class="primary-btn" id="fix-apply-btn">修复并对比</button>' +
-            '</div>' +
-        '</div>';
-
-    document.body.appendChild(overlay);
-
-    document.getElementById('fix-apply-btn').addEventListener('click', function() {
-        overlay.remove();
-        callback(true);
-    });
-    document.getElementById('fix-cancel-btn').addEventListener('click', function() {
-        overlay.remove();
-        callback(false);
-    });
-}
-
-// 纯提示对话框（无修复按钮，仅显示问题位置）
-function showInfoDialog(report, callback) {
-    var old = document.getElementById('fix-confirm-dialog');
-    if (old) old.remove();
-
-    var overlay = document.createElement('div');
-    overlay.id = 'fix-confirm-dialog';
-    overlay.className = 'modal-overlay';
-    overlay.style.display = 'flex';
-
-    overlay.innerHTML =
-        '<div class="modal" style="max-width:480px;">' +
-            '<div class="modal-header">JSON 格式问题检测</div>' +
-            '<div class="modal-body" style="padding:20px;">' +
-                '<pre class="fix-report-text">' + escapeHtml(report) + '</pre>' +
-            '</div>' +
-            '<div class="modal-footer">' +
-                '<button class="primary-btn" id="fix-info-ok-btn">知道了</button>' +
-            '</div>' +
-        '</div>';
-
-    document.body.appendChild(overlay);
-
-    document.getElementById('fix-info-ok-btn').addEventListener('click', function() {
-        overlay.remove();
-        if (callback) callback();
-    });
-}
-
-function escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function executeCompare(leftObj, rightObj) {
