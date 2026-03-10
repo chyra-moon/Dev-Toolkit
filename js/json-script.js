@@ -528,6 +528,10 @@ function formatJSON(editor, callback) {
         return;
     }
 
+    // 区分可自动修复的 vs 仅标记的
+    var autoFixable = issues.fixes.filter(function(f) { return !f.manualOnly; });
+    var manualOnly = issues.fixes.filter(function(f) { return f.manualOnly; });
+
     // 高亮问题位置
     var markers = [];
     highlightIssues(editor, issues.positions, markers);
@@ -537,19 +541,30 @@ function formatJSON(editor, callback) {
     var lines = ['【' + side + '】检测到以下问题：'];
     issues.fixes.forEach(function(f) { lines.push('  · ' + f.name + ' × ' + f.count); });
 
-    showFixConfirmDialog(lines.join('\n'), function(accepted) {
-        markers.forEach(function(m) { m.clear(); });
-        if (!accepted) { if (callback) callback(false); return; }
+    if (autoFixable.length > 0) {
+        // 有可修复项 → 弹修复确认对话框
+        showFixConfirmDialog(lines.join('\n'), function(accepted) {
+            markers.forEach(function(m) { m.clear(); });
+            if (!accepted) { if (callback) callback(false); return; }
 
-        var fixResult = tryParse(issues.fixed);
-        if (!fixResult.ok) {
-            alert(side + '修复后仍然无法解析：\n' + fixResult.err);
+            var fixResult = tryParse(issues.fixed);
+            if (!fixResult.ok) {
+                alert(side + '修复后仍然无法解析：\n' + fixResult.err);
+                if (callback) callback(false);
+                return;
+            }
+            editor.setValue(JSON.stringify(fixResult.val, null, currentTabSize));
+            if (callback) callback(true);
+        });
+    } else {
+        // 只有手动修复项 → 弹纯提示，无"修复并对比"按钮
+        lines.push('');
+        lines.push('以上问题需要手动修正，无法自动修复。');
+        showInfoDialog(lines.join('\n'), function() {
+            markers.forEach(function(m) { m.clear(); });
             if (callback) callback(false);
-            return;
-        }
-        editor.setValue(JSON.stringify(fixResult.val, null, currentTabSize));
-        if (callback) callback(true);
-    });
+        });
+    }
 }
 
 // 复制功能
@@ -1497,6 +1512,45 @@ function detectJsonIssues(text) {
 
     fixed = working;
 
+    // 7. 缺少逗号检测（仅标记不修复）：在修复后的文本上扫描常见的缺逗号模式
+    // 需要在原始 text 上定位，所以用原始文本的行来检查
+    var missingCommaCount = 0;
+    var origLines = text.split('\n');
+    for (var li = 0; li < origLines.length - 1; li++) {
+        var curLine = origLines[li].trimEnd();
+        var nextLine = origLines[li + 1].trim();
+        if (!curLine || !nextLine) continue;
+
+        var curEnds = curLine[curLine.length - 1];
+        var nextStarts = nextLine[0];
+
+        // 当前行末尾不是 , : { [ ( 且下一行开头是 " { [ 或字母数字 → 疑似缺逗号
+        var noCommaEnds = (curEnds === '"' || curEnds === '}' || curEnds === ']' ||
+                           curEnds === 'e' || curEnds === 'l' || // true/false/null
+                           /[0-9]/.test(curEnds));
+        var validNextStarts = (nextStarts === '"' || nextStarts === '{' || nextStarts === '[' ||
+                                nextStarts === 't' || nextStarts === 'f' || nextStarts === 'n' ||
+                                /[0-9\-]/.test(nextStarts));
+
+        if (noCommaEnds && validNextStarts) {
+            // 排除：当前行末尾是开括号 { [ 或冒号 :，那不需要逗号
+            if (curEnds === '{' || curEnds === '[' || curEnds === ':') continue;
+            // 排除：下一行开头是闭括号 } ]，那结尾不应该有逗号
+            if (nextStarts === '}' || nextStarts === ']') continue;
+
+            // 找到原始行中末尾字符的精确位置
+            var origEndCh = origLines[li].length;
+            positions.push({
+                line: li,
+                ch: origEndCh - 1,
+                len: 1,
+                desc: '此处可能缺少逗号'
+            });
+            missingCommaCount++;
+        }
+    }
+    if (missingCommaCount > 0) fixes.push({ name: '疑似缺少逗号（需手动修复）', count: missingCommaCount, manualOnly: true });
+
     // 过滤掉 count=0 的
     fixes = fixes.filter(function(f) { return f.count > 0; });
 
@@ -1553,6 +1607,35 @@ function showFixConfirmDialog(report, callback) {
     document.getElementById('fix-cancel-btn').addEventListener('click', function() {
         overlay.remove();
         callback(false);
+    });
+}
+
+// 纯提示对话框（无修复按钮，仅显示问题位置）
+function showInfoDialog(report, callback) {
+    var old = document.getElementById('fix-confirm-dialog');
+    if (old) old.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'fix-confirm-dialog';
+    overlay.className = 'modal-overlay';
+    overlay.style.display = 'flex';
+
+    overlay.innerHTML =
+        '<div class="modal" style="max-width:480px;">' +
+            '<div class="modal-header">JSON 格式问题检测</div>' +
+            '<div class="modal-body" style="padding:20px;">' +
+                '<pre class="fix-report-text">' + escapeHtml(report) + '</pre>' +
+            '</div>' +
+            '<div class="modal-footer">' +
+                '<button class="primary-btn" id="fix-info-ok-btn">知道了</button>' +
+            '</div>' +
+        '</div>';
+
+    document.body.appendChild(overlay);
+
+    document.getElementById('fix-info-ok-btn').addEventListener('click', function() {
+        overlay.remove();
+        if (callback) callback();
     });
 }
 
