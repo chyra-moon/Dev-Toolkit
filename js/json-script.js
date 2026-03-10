@@ -714,8 +714,6 @@ document.getElementById('action-btn').addEventListener('click', function() {
 (function initModeToggle() {
     const htmlEl = document.documentElement;
     const modeBtn = document.getElementById('mode-toggle');
-    const iconCompare = document.getElementById('icon-to-compare');
-    const iconSingle = document.getElementById('icon-to-single');
     const pageTitle = document.getElementById('page-title');
     const actionBtn = document.getElementById('action-btn');
     const leftTitle = document.getElementById('left-panel-title');
@@ -724,10 +722,6 @@ document.getElementById('action-btn').addEventListener('click', function() {
     function setMode(mode) {
         htmlEl.setAttribute('data-mode', mode);
         const isSingle = mode === 'single';
-
-        // 切换图标
-        iconCompare.style.display = isSingle ? '' : 'none';
-        iconSingle.style.display = isSingle ? 'none' : '';
 
         // 切换标题与按钮
         pageTitle.textContent = isSingle ? 'JSON 格式化' : 'JSON 差异比对';
