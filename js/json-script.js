@@ -4,7 +4,7 @@ const STORAGE_KEY = 'json_diff_settings';
 const defaultSettings = {
     theme: 'light',
     scheme: 'vscode',
-    font: "'Local_JetBrains_Mono', 'JetBrains Mono', Consolas, monospace",
+    font: "Consolas, 'Courier New', monospace",
     fontSize: 14,
     tabSize: 4,
     shortcuts: {
@@ -177,6 +177,47 @@ fontSelect.addEventListener('change', (e) => {
 
 settingsBtn.addEventListener('click', () => { settingsModal.style.display = 'flex'; });
 closeSettingsBtn.addEventListener('click', () => { settingsModal.style.display = 'none'; });
+
+// === 自定义字体动态加载（从 fonts/ 目录读取 fonts.json 清单）===
+(function loadCustomFonts() {
+    var select = document.getElementById('font-select');
+    if (!select) return;
+    fetch('../fonts/fonts.json')
+        .then(function(res) { return res.ok ? res.json() : null; })
+        .then(function(fonts) {
+            if (!fonts || !Array.isArray(fonts) || fonts.length === 0) return;
+            var group = document.createElement('optgroup');
+            group.label = '自定义字体';
+            fonts.forEach(function(f) {
+                if (!f.name || typeof f.name !== 'string' || !f.file || typeof f.file !== 'string') return;
+                if (!/^[\w\-. ()]+\.[a-zA-Z0-9]+$/.test(f.file)) return;
+                var family = 'Custom_' + f.name.replace(/[^a-zA-Z0-9_]/g, '_');
+                var style = document.createElement('style');
+                style.textContent = '@font-face{font-family:"' + family + '";src:url("../fonts/' + encodeURIComponent(f.file) + '");font-display:swap}';
+                document.head.appendChild(style);
+                var opt = document.createElement('option');
+                opt.value = "'" + family + "', monospace";
+                opt.textContent = f.name;
+                group.appendChild(opt);
+            });
+            if (group.children.length > 0) {
+                select.insertBefore(group, select.firstChild);
+            }
+            // 恢复已保存的字体选项（自定义字体选项刚加载完成，重新匹配）
+            if (userSettings.font) {
+                select.value = userSettings.font;
+                if (select.value !== userSettings.font) {
+                    select.selectedIndex = 0;
+                    userSettings.font = select.value;
+                    document.querySelectorAll('.CodeMirror').forEach(function(el) {
+                        el.style.fontFamily = select.value;
+                    });
+                    saveSettings();
+                }
+            }
+        })
+        .catch(function() {});
+})();
 
 // Tab 切换逻辑
 const tabBtns = document.querySelectorAll('.tab-btn');
@@ -926,30 +967,62 @@ function matchByContent(oldArr, newArr) {
     for (var i = 0; i < newArr.length; i++) { if (!newUsed[i]) unmatchedNew.push(i); }
 
     if (unmatchedOld.length > 0 && unmatchedNew.length > 0) {
-        // 只对两边都是对象的做相似度匹配
-        var simCandidates = [];
-        for (var oi = 0; oi < unmatchedOld.length; oi++) {
-            var oIdx = unmatchedOld[oi];
-            var ov = oldArr[oIdx];
-            if (ov === null || typeof ov !== 'object') continue;
-            for (var ni = 0; ni < unmatchedNew.length; ni++) {
-                var nIdx = unmatchedNew[ni];
-                if (newUsed[nIdx]) continue;
-                var nv = newArr[nIdx];
-                if (nv === null || typeof nv !== 'object') continue;
-                var sim = objectSimilarity(ov, nv);
-                if (sim >= 0.3) simCandidates.push({ oldIdx: oIdx, newIdx: nIdx, sim: sim });
+        // 安全阀：候选对数超过阈值则跳过 O(n²) 相似度匹配，避免大数组卡死
+        var SIM_PAIR_LIMIT = 10000;
+        if (unmatchedOld.length * unmatchedNew.length <= SIM_PAIR_LIMIT) {
+            // 预计算：为每个未匹配对象缓存 { keys[], strs{key→stringify} }
+            function buildKeyCache(arr, indices) {
+                var caches = [];
+                for (var i = 0; i < indices.length; i++) {
+                    var idx = indices[i];
+                    var v = arr[idx];
+                    if (v === null || typeof v !== 'object' || Array.isArray(v)) continue;
+                    var keys = Object.keys(v);
+                    var strs = {};
+                    for (var k = 0; k < keys.length; k++) strs[keys[k]] = JSON.stringify(v[keys[k]]);
+                    caches.push({ idx: idx, keys: keys, strs: strs });
+                }
+                return caches;
             }
-        }
+            var simObjOld = buildKeyCache(oldArr, unmatchedOld);
+            var simObjNew = buildKeyCache(newArr, unmatchedNew);
 
-        // 贪心：按相似度降序取不冲突的配对
-        simCandidates.sort(function(a, b) { return b.sim - a.sim; });
-        for (var i = 0; i < simCandidates.length; i++) {
-            var c = simCandidates[i];
-            if (oldUsed[c.oldIdx] || newUsed[c.newIdx]) continue;
-            oldUsed[c.oldIdx] = true;
-            newUsed[c.newIdx] = true;
-            pairs.push({ oldIdx: c.oldIdx, newIdx: c.newIdx, type: 'matched' });
+            var simCandidates = [];
+            for (var oi = 0; oi < simObjOld.length; oi++) {
+                var cA = simObjOld[oi];
+                for (var ni = 0; ni < simObjNew.length; ni++) {
+                    if (newUsed[simObjNew[ni].idx]) continue;
+                    var cB = simObjNew[ni];
+                    // 快速过滤：键数量差距过大的直接跳过
+                    if (Math.min(cA.keys.length, cB.keys.length) / Math.max(cA.keys.length, cB.keys.length) < 0.3) continue;
+                    // 合并键集 → 计算相似度（带早期终止）
+                    var allKeys = {};
+                    for (var ki = 0; ki < cA.keys.length; ki++) allKeys[cA.keys[ki]] = true;
+                    for (var ki = 0; ki < cB.keys.length; ki++) allKeys[cB.keys[ki]] = true;
+                    var total = Object.keys(allKeys).length;
+                    if (total === 0) continue;
+                    var needed = Math.ceil(total * 0.3);
+                    var same = 0, remaining = total, aborted = false;
+                    for (var k in allKeys) {
+                        if (cA.strs[k] !== undefined && cB.strs[k] !== undefined && cA.strs[k] === cB.strs[k]) same++;
+                        remaining--;
+                        if (same + remaining < needed) { aborted = true; break; }
+                    }
+                    if (aborted) continue;
+                    var sim = same / total;
+                    if (sim >= 0.3) simCandidates.push({ oldIdx: cA.idx, newIdx: cB.idx, sim: sim });
+                }
+            }
+
+            // 贪心：按相似度降序取不冲突的配对
+            simCandidates.sort(function(a, b) { return b.sim - a.sim; });
+            for (var i = 0; i < simCandidates.length; i++) {
+                var c = simCandidates[i];
+                if (oldUsed[c.oldIdx] || newUsed[c.newIdx]) continue;
+                oldUsed[c.oldIdx] = true;
+                newUsed[c.newIdx] = true;
+                pairs.push({ oldIdx: c.oldIdx, newIdx: c.newIdx, type: 'matched' });
+            }
         }
     }
 
@@ -1551,29 +1624,42 @@ function detectJsonIssues(text) {
     // 3-6 下面的检测在已经修复 BOM 和中文标点之后的文本上进行
     var working = fixed;
 
-    // 3. 单引号 → 双引号（仅在字符串值的 JSON 结构位置，不在双引号字符串内）
+    // 公共模式：匹配双引号字符串用于跳过，避免误修改字符串内部内容
+    var STR_SKIP = '"(?:[^"\\\\]|\\\\.)*"';
+
+    // 3. 单引号 → 双引号（跳过双引号字符串内部，避免误伤 "it's" 里的单引号）
     var singleQuoteCount = 0;
-    working = working.replace(/'((?:[^'\\]|\\.)*)'/g, function(match, inner, offset) {
-        // 简单检测是否在合理的 JSON 位置（键名或字符串值前后常有 : , [ { 等）
+    working = working.replace(new RegExp(STR_SKIP + "|'((?:[^'\\\\]|\\\\.)*)'" , 'g'), function(match, inner) {
+        if (match[0] === '"') return match;
         singleQuoteCount++;
         return '"' + inner.replace(/"/g, '\\"') + '"';
     });
     if (singleQuoteCount > 0) fixes.push({ name: '单引号→双引号', count: singleQuoteCount });
 
-    // 4. 行尾注释 // 和块注释 /* */
+    // 4. 行尾注释 // 和块注释 /* */（跳过字符串内部，避免 "http://..." 被截断）
     var commentCount = 0;
-    working = working.replace(/\/\/[^\n]*/g, function() { commentCount++; return ''; });
-    working = working.replace(/\/\*[\s\S]*?\*\//g, function() { commentCount++; return ''; });
+    working = working.replace(new RegExp(STR_SKIP + '|\\/\\/[^\\n]*', 'g'), function(match) {
+        if (match[0] === '"') return match;
+        commentCount++; return '';
+    });
+    working = working.replace(new RegExp(STR_SKIP + '|\\/\\*[\\s\\S]*?\\*\\/', 'g'), function(match) {
+        if (match[0] === '"') return match;
+        commentCount++; return '';
+    });
     if (commentCount > 0) fixes.push({ name: '注释', count: commentCount });
 
-    // 5. 尾逗号（] 或 } 前的逗号）
+    // 5. 尾逗号（] 或 } 前的逗号）（跳过字符串内部，避免 "ok,}" 被误改）
     var trailingCount = 0;
-    working = working.replace(/,(\s*[}\]])/g, function(m, after) { trailingCount++; return after; });
+    working = working.replace(new RegExp(STR_SKIP + '|,(\\s*[}\\]])', 'g'), function(match, after) {
+        if (match[0] === '"') return match;
+        trailingCount++; return after;
+    });
     if (trailingCount > 0) fixes.push({ name: '尾部逗号', count: trailingCount });
 
-    // 6. 无引号键名
+    // 6. 无引号键名（跳过字符串内部）
     var unquotedCount = 0;
-    working = working.replace(/([{,]\s*)([a-zA-Z_$][\w$]*)(\s*:)/g, function(m, before, key, after) {
+    working = working.replace(new RegExp(STR_SKIP + '|([{,]\\s*)([a-zA-Z_$][\\w$]*)(\\s*:)', 'g'), function(match, before, key, after) {
+        if (match[0] === '"') return match;
         unquotedCount++;
         return before + '"' + key + '"' + after;
     });
