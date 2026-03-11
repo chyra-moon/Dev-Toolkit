@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="light" data-scheme="vscode" data-mode="single">
+<html lang="zh-CN" data-theme="light" data-scheme="evalight" data-mode="single">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="../css/lib/foldgutter.css">
     <link rel="stylesheet" href="../css/lib/dialog.min.css">
 
-    <link rel="stylesheet" href="../css/json-style.css">
+    <link rel="stylesheet" href="../css/json-style.css?v=20260311">
 </head>
 <body>
     <div class="app-layout">
@@ -121,6 +121,7 @@
                             <label>色彩主题</label>
                             <select id="scheme-select">
                                 <option value="vscode">VS Code 经典</option>
+                                <option value="evalight">Eva Light</option>
                                 <option value="onedark">One Dark 科技风</option>
                                 <option value="github">GitHub 极简</option>
                             </select>
@@ -128,17 +129,27 @@
                         <div class="setting-item">
                             <label>代码字体</label>
                             <select id="font-select">
+                                <option value="'JetBrains Mono', Consolas, 'Courier New', monospace">JetBrains Mono</option>
                                 <option value="Consolas, 'Courier New', monospace">Consolas</option>
                                 <option value="Menlo, Monaco, monospace">Menlo / Monaco</option>
                                 <option value="'SF Mono', monospace">SF Mono</option>
                                 <option value="'Fira Code', monospace">Fira Code</option>
                             </select>
                         </div>
-                        <div class="setting-item">
-                            <label>字号大小</label>
-                            <div class="setting-control">
-                                <input type="range" id="font-size-slider" min="12" max="24" value="14" style="cursor:pointer; flex: 1;">
-                                <span id="font-size-val" style="font-size:14px; color:var(--text-secondary); width:35px; white-space:nowrap; text-align: right;">14px</span>
+                        <div class="setting-group">
+                            <div class="setting-group-row">
+                                <label>字号</label>
+                                <div class="setting-control compact">
+                                    <input type="range" id="font-size-slider" min="12" max="24" value="14" style="cursor:pointer; flex:1;">
+                                    <span id="font-size-val">14px</span>
+                                </div>
+                            </div>
+                            <div class="setting-group-row">
+                                <label>粗细</label>
+                                <div class="setting-control compact">
+                                    <input type="range" id="font-weight-slider" min="100" max="900" step="100" value="400" style="cursor:pointer; flex:1;">
+                                    <span id="font-weight-val">400</span>
+                                </div>
                             </div>
                         </div>
                         <div class="setting-item">

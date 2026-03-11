@@ -3,9 +3,10 @@ const STORAGE_KEY = 'json_diff_settings';
 
 const defaultSettings = {
     theme: 'light',
-    scheme: 'vscode',
-    font: "Consolas, 'Courier New', monospace",
+    scheme: 'evalight',
+    font: "'JetBrains Mono', Consolas, 'Courier New', monospace",
     fontSize: 14,
+    fontWeight: 400,
     tabSize: 4,
     shortcuts: {
         lv1: { ctrl: false, shift: false, alt: true, code: "Digit1", key: "1", displayKey: "1" },
@@ -95,6 +96,13 @@ try {
                 ...savedShortcuts
             }
         };
+        // 一次性迁移：旧版缓存默认是 vscode 主题 + Consolas 字体，升级到新默认
+        if (!parsed._migrated_v2) {
+            if (parsed.scheme === 'vscode') userSettings.scheme = defaultSettings.scheme;
+            if (parsed.font === "Consolas, 'Courier New', monospace") userSettings.font = defaultSettings.font;
+            userSettings._migrated_v2 = true;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(userSettings));
+        }
     }
 } catch(e) {}
 
@@ -124,6 +132,222 @@ const cmOptions = {
 const editorLeft = CodeMirror.fromTextArea(document.getElementById("json-input-left"), cmOptions);
 const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-right"), cmOptions);
 
+// === 括号作用域高亮 & 缩进辅助线 ===
+(function initBracketScopeAndGuides() {
+    var OPENERS = '{[', CLOSERS = '}]', PAIRS = {'{':'}', '[':']'};
+
+    function setup(editor) {
+        var wrapper = editor.getWrapperElement();
+        var guidesLayer = document.createElement('div');
+        guidesLayer.className = 'indent-guides-layer';
+        wrapper.appendChild(guidesLayer);
+
+        var guidePool = [], bracketMarks = [], activeBracketLevel = -1, rafId = null;
+
+        function getGuideEl(idx) {
+            if (idx < guidePool.length) { guidePool[idx].style.display = ''; return guidePool[idx]; }
+            var el = document.createElement('div');
+            el.className = 'indent-guide';
+            guidesLayer.appendChild(el);
+            guidePool.push(el);
+            return el;
+        }
+
+        // 从光标位置向外扫描，找到最近的未闭合括号对
+        function findEnclosingBrackets(cursor) {
+            var depth = 0, openPos = null, openChar = null;
+            // 向左扫描找开括号
+            for (var l = cursor.line; l >= 0; l--) {
+                var text = editor.getLine(l);
+                var from = (l === cursor.line) ? cursor.ch - 1 : text.length - 1;
+                for (var c = from; c >= 0; c--) {
+                    var ch = text[c];
+                    if (OPENERS.indexOf(ch) === -1 && CLOSERS.indexOf(ch) === -1) continue;
+                    var tt = editor.getTokenTypeAt({line: l, ch: c + 1});
+                    if (tt && tt.indexOf('string') !== -1) continue;
+                    if (CLOSERS.indexOf(ch) !== -1) { depth++; }
+                    else {
+                        if (depth === 0) { openPos = {line: l, ch: c}; openChar = ch; break; }
+                        depth--;
+                    }
+                }
+                if (openPos) break;
+            }
+            if (!openPos) return null;
+            // 向右扫描找配对闭括号
+            var closeChar = PAIRS[openChar];
+            depth = 0;
+            var last = editor.lastLine();
+            for (var l = openPos.line; l <= last; l++) {
+                var text = editor.getLine(l);
+                var from = (l === openPos.line) ? openPos.ch + 1 : 0;
+                for (var c = from; c < text.length; c++) {
+                    var ch = text[c];
+                    if (ch !== openChar && ch !== closeChar) continue;
+                    var tt = editor.getTokenTypeAt({line: l, ch: c + 1});
+                    if (tt && tt.indexOf('string') !== -1) continue;
+                    if (ch === openChar) { depth++; }
+                    else {
+                        if (depth === 0) return { open: openPos, close: {line: l, ch: c} };
+                        depth--;
+                    }
+                }
+            }
+            return null;
+        }
+
+        // 渲染可视区域的缩进辅助线
+        function renderGuides() {
+            var vp = editor.getViewport();
+            var charW = editor.defaultCharWidth();
+            var lineH = editor.defaultTextHeight();
+            var wRect = wrapper.getBoundingClientRect();
+            var guideIdx = 0;
+
+            // 收集可视行缩进级别
+            var lines = [];
+            for (var i = vp.from; i < vp.to; i++) {
+                var text = editor.getLine(i);
+                if (text === undefined) break;
+                var sp = 0;
+                for (var j = 0; j < text.length; j++) {
+                    if (text[j] === ' ') sp++;
+                    else if (text[j] === '\t') sp += currentTabSize;
+                    else break;
+                }
+                lines.push({ num: i, level: text.trim() === '' ? -1 : Math.floor(sp / currentTabSize), empty: text.trim() === '' });
+            }
+            // 空行继承相邻非空行的缩进级别
+            for (var i = 0; i < lines.length; i++) {
+                if (lines[i].empty) {
+                    var p = i > 0 ? lines[i - 1].level : 0;
+                    var n = i < lines.length - 1 ? lines[i + 1].level : 0;
+                    lines[i].level = Math.max(p, n);
+                }
+            }
+            if (!lines.length) {
+                for (var i = 0; i < guidePool.length; i++) guidePool[i].style.display = 'none';
+                return;
+            }
+
+            // 计算各级x坐标（只算一次）
+            var maxLvl = 0;
+            for (var i = 0; i < lines.length; i++) if (lines[i].level > maxLvl) maxLvl = lines[i].level;
+            var xBase = editor.charCoords({line: lines[0].num, ch: 0}, 'window').left - wRect.left;
+
+            // 遍历每个缩进级别，找到连续行块并绘制辅助线
+            for (var lvl = 1; lvl <= maxLvl; lvl++) {
+                var runStart = -1;
+                for (var i = 0; i <= lines.length; i++) {
+                    var has = i < lines.length && lines[i].level >= lvl;
+                    if (has && runStart === -1) { runStart = i; }
+                    else if (!has && runStart !== -1) {
+                        var sLine = lines[runStart].num, eLine = lines[i - 1].num;
+                        var topY = editor.charCoords({line: sLine, ch: 0}, 'window').top - wRect.top;
+                        var botY = editor.charCoords({line: eLine, ch: 0}, 'window').top - wRect.top + lineH;
+
+                        var el = getGuideEl(guideIdx++);
+                        el.style.left = (xBase + (lvl - 1) * currentTabSize * charW) + 'px';
+                        el.style.top = topY + 'px';
+                        el.style.height = (botY - topY) + 'px';
+                        if (lvl === activeBracketLevel) el.classList.add('indent-guide-active');
+                        else el.classList.remove('indent-guide-active');
+                        runStart = -1;
+                    }
+                }
+            }
+            // 隐藏多余的缓存元素
+            for (var i = guideIdx; i < guidePool.length; i++) guidePool[i].style.display = 'none';
+        }
+
+        // 光标活动：找括号作用域 + 高亮 + 联动辅助线
+        function onCursorActivity() {
+            bracketMarks.forEach(function(m) { m.clear(); });
+            bracketMarks = [];
+            activeBracketLevel = -1;
+
+            var cursor = editor.getCursor();
+            var result = findEnclosingBrackets(cursor);
+            if (result) {
+                bracketMarks.push(editor.markText(
+                    result.open, {line: result.open.line, ch: result.open.ch + 1},
+                    {className: 'cm-bracket-highlight'}
+                ));
+                bracketMarks.push(editor.markText(
+                    result.close, {line: result.close.line, ch: result.close.ch + 1},
+                    {className: 'cm-bracket-highlight'}
+                ));
+                // 激活辅助线级别 = 开括号所在行缩进级别 + 1（内容缩进级别）
+                var openText = editor.getLine(result.open.line);
+                var sp = 0;
+                for (var j = 0; j < openText.length; j++) {
+                    if (openText[j] === ' ') sp++;
+                    else if (openText[j] === '\t') sp += currentTabSize;
+                    else break;
+                }
+                activeBracketLevel = Math.floor(sp / currentTabSize) + 1;
+            }
+            scheduleRender();
+        }
+
+        function scheduleRender() {
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = requestAnimationFrame(renderGuides);
+        }
+
+        editor.on('cursorActivity', onCursorActivity);
+        editor.on('viewportChange', scheduleRender);
+        editor.on('scroll', scheduleRender);
+        editor.on('change', function() { setTimeout(scheduleRender, 30); });
+        editor.on('refresh', scheduleRender);
+        setTimeout(renderGuides, 200);
+
+        return { scheduleRender: scheduleRender };
+    }
+
+    var leftGuides = setup(editorLeft);
+    var rightGuides = setup(editorRight);
+
+    // 暴露刷新接口供字体/字号/缩进变更时调用
+    window._refreshIndentGuides = function() {
+        leftGuides.scheduleRender();
+        rightGuides.scheduleRender();
+    };
+})();
+
+// === LocalStorage 持久化存储防抖与初始化 ===
+let debounceTimer;
+function debounceSave() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+        const mode = htmlEl.getAttribute('data-mode') || 'single';
+        if (mode === 'single') {
+            localStorage.setItem('json_single_data', editorLeft.getValue());
+        } else {
+            localStorage.setItem('json_compare_left', editorLeft.getValue());
+            localStorage.setItem('json_compare_right', editorRight.getValue());
+        }
+    }, 500);
+}
+
+// 绑定变更事件以触发本地保存
+editorLeft.on('change', debounceSave);
+editorRight.on('change', debounceSave);
+
+// 页面加载时的状态还原
+function restoreState() {
+    const mode = htmlEl.getAttribute('data-mode') || 'single';
+    if (mode === 'single') {
+        const singleData = localStorage.getItem('json_single_data');
+        if (singleData !== null) editorLeft.setValue(singleData);
+    } else {
+        const compLeft = localStorage.getItem('json_compare_left');
+        const compRight = localStorage.getItem('json_compare_right');
+        if (compLeft !== null) editorLeft.setValue(compLeft);
+        if (compRight !== null) editorRight.setValue(compRight);
+    }
+}
+
 // === 设置逻辑与主题切换 ===
 const htmlEl = document.documentElement;
 const themeToggleBtn = document.getElementById('theme-toggle');
@@ -144,6 +368,7 @@ function applySettings() {
     document.querySelectorAll('.CodeMirror').forEach(el => {
         el.style.fontFamily = userSettings.font;
         el.style.fontSize = userSettings.fontSize + 'px';
+        el.style.fontWeight = userSettings.fontWeight;
     });
 }
 applySettings();
@@ -288,6 +513,27 @@ if (tabSizeSlider) {
         };
         silentFormat(editorLeft);
         silentFormat(editorRight);
+    });
+}
+
+// 字体粗细调整逻辑
+const fontWeightSlider = document.getElementById('font-weight-slider');
+const fontWeightVal = document.getElementById('font-weight-val');
+
+if (fontWeightSlider) {
+    fontWeightSlider.value = userSettings.fontWeight;
+    fontWeightVal.textContent = userSettings.fontWeight;
+
+    fontWeightSlider.addEventListener('input', (e) => {
+        const weight = parseInt(e.target.value);
+        fontWeightVal.textContent = weight;
+        document.querySelectorAll('.CodeMirror').forEach(el => {
+            el.style.fontWeight = weight;
+        });
+        userSettings.fontWeight = weight;
+        saveSettings();
+        editorLeft.refresh();
+        editorRight.refresh();
     });
 }
 
@@ -719,9 +965,34 @@ document.getElementById('action-btn').addEventListener('click', function() {
     const leftTitle = document.getElementById('left-panel-title');
     const rightPanel = document.querySelectorAll('.editor-panel')[1];
 
-    function setMode(mode) {
+    function setMode(mode, isInit) {
+        // 切换前先保存当前模式的数据（初始化时不需要保存）
+        if (!isInit) {
+            var prevMode = htmlEl.getAttribute('data-mode') || 'single';
+            if (prevMode === 'single') {
+                localStorage.setItem('json_single_data', editorLeft.getValue());
+            } else {
+                localStorage.setItem('json_compare_left', editorLeft.getValue());
+                localStorage.setItem('json_compare_right', editorRight.getValue());
+            }
+        }
+
         htmlEl.setAttribute('data-mode', mode);
+        localStorage.setItem('json_mode', mode);
         const isSingle = mode === 'single';
+
+        // 加载目标模式的数据
+        setTimeout(() => {
+            if (isSingle) {
+                const singleData = localStorage.getItem('json_single_data');
+                if (singleData !== null) editorLeft.setValue(singleData);
+            } else {
+                const compLeft = localStorage.getItem('json_compare_left');
+                const compRight = localStorage.getItem('json_compare_right');
+                if (compLeft !== null) editorLeft.setValue(compLeft);
+                if (compRight !== null) editorRight.setValue(compRight);
+            }
+        }, 0);
 
         // 切换标题与按钮
         pageTitle.textContent = isSingle ? 'JSON 格式化' : 'JSON 差异比对';
@@ -740,11 +1011,12 @@ document.getElementById('action-btn').addEventListener('click', function() {
 
     modeBtn.addEventListener('click', function() {
         var current = htmlEl.getAttribute('data-mode') || 'single';
-        setMode(current === 'single' ? 'compare' : 'single');
+        setMode(current === 'single' ? 'compare' : 'single', false);
     });
 
-    // 初始化为单模式
-    setMode('single');
+    // 初始化：恢复上次保存的模式
+    var savedMode = localStorage.getItem('json_mode') || 'single';
+    setMode(savedMode, true);
 })();
 
 // ==================== JSON 深度结构化对比引擎 ====================

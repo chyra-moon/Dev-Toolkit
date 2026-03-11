@@ -1,5 +1,18 @@
+@font-face {
+    font-family: 'JetBrains Mono';
+    src: url('../Fonts/JetBrainsMono-Regular.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'JetBrains Mono';
+    src: url('../Fonts/JetBrainsMono-Bold.woff2') format('woff2');
+    font-weight: bold;
+    font-style: normal;
+}
+
 /* ==================== 1. VS Code 经典 (默认) ==================== */
-:root, :root[data-scheme="vscode"] {
+:root[data-scheme="vscode"] {
     --core-blue: #007acc; --core-blue-hover: #005a9e;
     --bg-main: #f6f8fa; --bg-panel: #ffffff; --bg-toolbar: #f8fafc;
     --border-soft: #cbd5e1; --text-primary: #1e293b; --text-secondary: #64748b;
@@ -8,8 +21,9 @@
     --cm-bg: #ffffff; --cm-text: #333333; --cm-gutter-bg: #f8fafc; --cm-gutter-border: #cbd5e1; 
     --cm-linenumber: #2b91af; --cm-string: #a31515; --cm-property: #0451a5; 
     --cm-number: #098658; --cm-atom: #0000ff; --cm-bracket: #475569;
+    --cm-matchbracket-bg: rgba(210, 153, 40, 0.12); --cm-matchbracket-color: #8a6312;
 }
-html[data-theme="dark"], html[data-scheme="vscode"][data-theme="dark"] {
+html[data-scheme="vscode"][data-theme="dark"] {
     --core-blue: #007acc; --core-blue-hover: #0ea5e9;
     --bg-main: #111111; --bg-panel: #1e1e1e; --bg-toolbar: #2d2d2d;
     --border-soft: #444444; --text-primary: #d4d4d4; --text-secondary: #858585;
@@ -17,6 +31,7 @@ html[data-theme="dark"], html[data-scheme="vscode"][data-theme="dark"] {
     --cm-bg: #1e1e1e; --cm-text: #d4d4d4; --cm-gutter-bg: #1e1e1e; --cm-gutter-border: #333333; 
     --cm-linenumber: #858585; --cm-string: #ce9178; --cm-property: #9cdcfe; 
     --cm-number: #b5cea8; --cm-atom: #569cd6; --cm-bracket: #d4d4d4;
+    --cm-matchbracket-bg: rgba(229, 192, 100, 0.18); --cm-matchbracket-color: #e5c064;
 }
 
 /* ==================== 2. One Dark 科技风 ==================== */
@@ -28,6 +43,7 @@ html[data-theme="dark"], html[data-scheme="vscode"][data-theme="dark"] {
     --cm-bg: #fafafa; --cm-text: #383a42; --cm-gutter-bg: #fafafa; --cm-gutter-border: #e5e5e6; 
     --cm-linenumber: #9d9d9f; --cm-string: #50a14f; --cm-property: #e45649; 
     --cm-number: #986801; --cm-atom: #0184bc; --cm-bracket: #383a42;
+    --cm-matchbracket-bg: rgba(198, 120, 60, 0.14); --cm-matchbracket-color: #986801;
 }
 html[data-scheme="onedark"][data-theme="dark"] {
     --core-blue: #61afef; --core-blue-hover: #528bff;
@@ -37,6 +53,7 @@ html[data-scheme="onedark"][data-theme="dark"] {
     --cm-bg: #282c34; --cm-text: #abb2bf; --cm-gutter-bg: #282c34; --cm-gutter-border: #4b5363; 
     --cm-linenumber: #4b5363; --cm-string: #98c379; --cm-property: #e06c75; 
     --cm-number: #d19a66; --cm-atom: #56b6c2; --cm-bracket: #abb2bf;
+    --cm-matchbracket-bg: rgba(209, 154, 102, 0.2); --cm-matchbracket-color: #d19a66;
 }
 
 /* ==================== 3. GitHub 极简风 ==================== */
@@ -48,6 +65,7 @@ html[data-scheme="onedark"][data-theme="dark"] {
     --cm-bg: #ffffff; --cm-text: #24292f; --cm-gutter-bg: #ffffff; --cm-gutter-border: #f6f8fa; 
     --cm-linenumber: #8c959f; --cm-string: #0a3069; --cm-property: #0550ae; 
     --cm-number: #cf222e; --cm-atom: #116329; --cm-bracket: #24292f;
+    --cm-matchbracket-bg: rgba(191, 135, 48, 0.14); --cm-matchbracket-color: #8a6312;
 }
 html[data-scheme="github"][data-theme="dark"] {
     --core-blue: #58a6ff; --core-blue-hover: #79c0ff;
@@ -57,9 +75,33 @@ html[data-scheme="github"][data-theme="dark"] {
     --cm-bg: #0d1117; --cm-text: #c9d1d9; --cm-gutter-bg: #0d1117; --cm-gutter-border: #161b22; 
     --cm-linenumber: #484f58; --cm-string: #a5d6ff; --cm-property: #79c0ff; 
     --cm-number: #ff7b72; --cm-atom: #ff7b72; --cm-bracket: #c9d1d9;
+    --cm-matchbracket-bg: rgba(210, 168, 75, 0.2); --cm-matchbracket-color: #d2a84b;
 }
 
 /* === Theme Transitions === */
+/* ==================== 4. Eva Light (高定护眼) ==================== */
+:root[data-scheme="evalight"] {
+    --core-blue: #007acc; --core-blue-hover: #005a9e;
+    --bg-main: #f4f5f9; --bg-panel: #ffffff; --bg-toolbar: #f8fafc;
+    --border-soft: #cbd5e1; --text-primary: #1e293b; --text-secondary: #64748b;
+    --error-color: #ef4444; 
+    
+    --cm-bg: #ffffff; --cm-text: #9ca3af; --cm-gutter-bg: #f8fafc; --cm-gutter-border: #cbd5e1; 
+    --cm-linenumber: #94a3b8; --cm-string: #3d8e59; --cm-property: #b03824; 
+    --cm-number: #d16d26; --cm-atom: #1b42a3; --cm-bracket: #6b7280;
+    --cm-matchbracket-bg: rgba(210, 153, 40, 0.12); --cm-matchbracket-color: #b07d1e;
+}
+html[data-theme="dark"][data-scheme="evalight"] {
+    --core-blue: #0ea5e9; --core-blue-hover: #38bdf8;
+    --bg-main: #111111; --bg-panel: #1e1e1e; --bg-toolbar: #2d2d2d;
+    --border-soft: #444444; --text-primary: #d4d4d4; --text-secondary: #858585;
+    
+    --cm-bg: #1e1e1e; --cm-text: #6b7280; --cm-gutter-bg: #1e1e1e; --cm-gutter-border: #333333; 
+    --cm-linenumber: #858585; --cm-string: #4daf7c; --cm-property: #e06c75; 
+    --cm-number: #d19a66; --cm-atom: #56b6c2; --cm-bracket: #a3a3a3;
+    --cm-matchbracket-bg: rgba(229, 192, 100, 0.18); --cm-matchbracket-color: #e5c064;
+}
+
 body, .app-header, .editor-panel, .panel-toolbar, .modal, .modal-header, .modal-body, .modal-footer, .CodeMirror, .CodeMirror-gutters {
     transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
@@ -125,7 +167,7 @@ html[data-mode="single"] .editor-panel:last-child {
 /* === CodeMirror \u6df1\u6d45\u8272\u81ea\u9002\u5e94\u6df1\u5ea6\u5b9a\u5236 (\u4eff VS Code) === */
 .CodeMirror {
     height: 100% !important;
-    font-family: Consolas, 'Courier New', monospace !important;
+    font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace;
     background-color: var(--cm-bg) !important;
     color: var(--cm-text) !important;
     border-color: var(--border-soft) !important;
@@ -133,11 +175,60 @@ html[data-mode="single"] .editor-panel:last-child {
 
 .CodeMirror-gutters { background-color: var(--cm-gutter-bg) !important; border-right: 1px solid var(--cm-gutter-border) !important; }
 .CodeMirror-linenumber { color: var(--cm-linenumber) !important; padding-right: 12px !important; }
-.cm-s-default .cm-property { color: var(--cm-property) !important; }
 .cm-s-default .cm-string { color: var(--cm-string) !important; }
+.cm-s-default .cm-property { color: var(--cm-property) !important; }
 .cm-s-default .cm-number { color: var(--cm-number) !important; }
 .cm-s-default .cm-atom { color: var(--cm-atom) !important; }
 .CodeMirror-line { color: var(--cm-bracket); }
+
+/* === Eva Light 配色直接硬覆盖（绕过变量继承问题） === */
+html[data-scheme="evalight"] .cm-s-default .cm-string { color: #3d8e59 !important; }
+html[data-scheme="evalight"] .cm-s-default .cm-property { color: #b03824 !important; }
+html[data-scheme="evalight"] .cm-s-default .cm-number { color: #d16d26 !important; }
+html[data-scheme="evalight"] .cm-s-default .cm-atom { color: #1b42a3 !important; }
+html[data-scheme="evalight"] .CodeMirror-line { color: #6b7280; }
+html[data-scheme="evalight"] .CodeMirror-linenumber { color: #94a3b8 !important; }
+html[data-scheme="evalight"] .CodeMirror-matchingbracket { background-color: rgba(210, 153, 40, 0.12) !important; color: #b07d1e !important; font-weight: bold; border-bottom: 1px solid #b07d1e; }
+
+html[data-scheme="evalight"][data-theme="dark"] .cm-s-default .cm-string { color: #4daf7c !important; }
+html[data-scheme="evalight"][data-theme="dark"] .cm-s-default .cm-property { color: #e06c75 !important; }
+html[data-scheme="evalight"][data-theme="dark"] .cm-s-default .cm-number { color: #d19a66 !important; }
+html[data-scheme="evalight"][data-theme="dark"] .cm-s-default .cm-atom { color: #56b6c2 !important; }
+html[data-scheme="evalight"][data-theme="dark"] .CodeMirror-line { color: #a3a3a3; }
+html[data-scheme="evalight"][data-theme="dark"] .CodeMirror-linenumber { color: #858585 !important; }
+html[data-scheme="evalight"][data-theme="dark"] .CodeMirror-matchingbracket { background-color: rgba(229, 192, 100, 0.18) !important; color: #e5c064 !important; font-weight: bold; border-bottom: 1px solid #e5c064; }
+
+/* 括号匹配高亮背景 */
+.CodeMirror-matchingbracket { background-color: var(--cm-matchbracket-bg, rgba(0,122,204,0.15)) !important; color: var(--cm-matchbracket-color, #0451a5) !important; font-weight: bold; border-bottom: 1px solid var(--cm-matchbracket-color, #0451a5); }
+
+/* 括号作用域高亮标记（光标在括号内部时） */
+.cm-bracket-highlight {
+    background-color: var(--cm-matchbracket-bg, rgba(0,122,204,0.15)) !important;
+    color: var(--cm-matchbracket-color, #0451a5) !important;
+    font-weight: bold;
+    border-bottom: 1px solid var(--cm-matchbracket-color, #0451a5);
+    border-radius: 2px;
+}
+
+/* === 缩进辅助线 === */
+.indent-guides-layer {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+}
+.indent-guide {
+    position: absolute;
+    width: 1px;
+    background-color: var(--border-soft);
+    opacity: 0.4;
+    transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+.indent-guide-active {
+    background-color: var(--cm-matchbracket-color, #0451a5) !important;
+    opacity: 0.75;
+}
 
 /* 覆盖原始折叠图标为 Chevron */
 .CodeMirror-foldgutter-open, .CodeMirror-foldgutter-folded { color: transparent !important; text-shadow: none !important; }
@@ -166,6 +257,30 @@ html[data-mode="single"] .editor-panel:last-child {
 .setting-item select { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-soft); font-size: 14px; outline: none; cursor: pointer; background: var(--bg-panel); color: var(--text-primary); width: 200px; box-sizing: border-box; transition: border-color 0.2s; }
 .setting-item select:focus { border-color: var(--core-blue); }
 .setting-control { width: 200px; display: flex; align-items: center; gap: 10px; box-sizing: border-box; }
+.setting-control.compact { width: auto; flex: 1; display: flex; align-items: center; gap: 8px; }
+.setting-control.compact span { font-size: 13px; color: var(--text-secondary); width: 32px; white-space: nowrap; text-align: right; flex-shrink: 0; }
+.setting-group {
+    margin: 0 30px;
+    padding: 10px 14px;
+    background: var(--bg-toolbar);
+    border-radius: 8px;
+    border: 1px solid var(--border-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.setting-group-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.setting-group-row label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    width: 32px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
 .setting-item input[type='checkbox'] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--core-blue); }
 
 .shortcut-input {
@@ -179,7 +294,7 @@ html[data-mode="single"] .editor-panel:last-child {
     text-align: center;
     background: var(--bg-toolbar);
     color: var(--core-blue);
-    font-family: Consolas, 'Courier New', monospace;
+    font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace;
     font-weight: bold;
     transition: all 0.2s;
     box-sizing: border-box;
