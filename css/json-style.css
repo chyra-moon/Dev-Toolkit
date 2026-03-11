@@ -175,6 +175,7 @@ html[data-mode="single"] .editor-panel:last-child {
 
 .CodeMirror-gutters { background-color: var(--cm-gutter-bg) !important; border-right: 1px solid var(--cm-gutter-border) !important; }
 .CodeMirror-linenumber { color: var(--cm-linenumber) !important; padding-right: 12px !important; }
+.CodeMirror-cursor { border-left: 2px solid var(--cm-text) !important; }
 .cm-s-default .cm-string { color: var(--cm-string) !important; }
 .cm-s-default .cm-property { color: var(--cm-property) !important; }
 .cm-s-default .cm-number { color: var(--cm-number) !important; }

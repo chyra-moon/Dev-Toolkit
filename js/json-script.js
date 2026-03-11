@@ -302,7 +302,7 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
         editor.on('refresh', scheduleRender);
         setTimeout(renderGuides, 200);
 
-        return { scheduleRender: scheduleRender };
+        return { scheduleRender: scheduleRender, findEnclosingBrackets: findEnclosingBrackets, editor: editor };
     }
 
     var leftGuides = setup(editorLeft);
@@ -313,6 +313,65 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
         leftGuides.scheduleRender();
         rightGuides.scheduleRender();
     };
+
+    // === Alt+双击键名：选中整个值并复制 ===
+    function setupAltDblClick(editor) {
+        editor.getWrapperElement().addEventListener('dblclick', function(e) {
+            if (!e.altKey) return;
+            e.preventDefault();
+            var pos = editor.coordsChar({left: e.clientX, top: e.clientY});
+            var lineText = editor.getLine(pos.line);
+            if (!lineText) return;
+            // 找这一行的冒号位置（键值分隔符）
+            var colonIdx = -1;
+            var inStr = false;
+            for (var i = 0; i < lineText.length; i++) {
+                if (lineText[i] === '"') inStr = !inStr;
+                if (!inStr && lineText[i] === ':') { colonIdx = i; break; }
+            }
+            if (colonIdx === -1) return;
+            // 冒号后跳过空格，找到值起点
+            var valStart = colonIdx + 1;
+            while (valStart < lineText.length && lineText[valStart] === ' ') valStart++;
+            if (valStart >= lineText.length) return;
+            var startChar = lineText[valStart];
+            var from = {line: pos.line, ch: valStart};
+            var to;
+            if (startChar === '{' || startChar === '[') {
+                // 对象/数组：找配对的闭括号
+                var closeChar = startChar === '{' ? '}' : ']';
+                var depth = 0, last = editor.lastLine();
+                var found = false;
+                for (var l = pos.line; l <= last; l++) {
+                    var text = editor.getLine(l);
+                    var s = (l === pos.line) ? valStart : 0;
+                    for (var c = s; c < text.length; c++) {
+                        var tt = editor.getTokenTypeAt({line: l, ch: c + 1});
+                        if (tt && tt.indexOf('string') !== -1) continue;
+                        if (text[c] === startChar) depth++;
+                        else if (text[c] === closeChar) {
+                            depth--;
+                            if (depth === 0) { to = {line: l, ch: c + 1}; found = true; break; }
+                        }
+                    }
+                    if (found) break;
+                }
+                if (!to) return;
+            } else {
+                // 简单值：取到行尾（去掉尾部逗号）
+                var end = lineText.length;
+                var trimmed = lineText.trimEnd();
+                if (trimmed.endsWith(',')) end = trimmed.length - 1;
+                else end = trimmed.length;
+                to = {line: pos.line, ch: end};
+            }
+            editor.setSelection(from, to);
+            var text = editor.getSelection();
+            if (text) navigator.clipboard.writeText(text);
+        });
+    }
+    setupAltDblClick(editorLeft);
+    setupAltDblClick(editorRight);
 })();
 
 // === LocalStorage 持久化存储防抖与初始化 ===
