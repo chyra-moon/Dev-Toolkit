@@ -3,15 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Excel 文档深度比较</title>
+    <title>Excel 比较器</title>
     <!-- 引入 SheetJS 处理 Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="../css/style.css">
     <style>
-        /* 额外的内联样式（如果有） */
+        .back-btn {
+            position: fixed;
+            top: 14px;
+            left: 20px;
+            z-index: 120;
+            text-decoration: none;
+            color: #107c41;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        .back-btn:hover {
+            background: rgba(16, 124, 65, 0.08);
+        }
     </style>
 </head>
 <body>
+    <a href="../index.html" class="back-btn">← 返回工具箱</a>
 
     <!-- 第一部分：上传页面 -->
     <div id="upload-section">
