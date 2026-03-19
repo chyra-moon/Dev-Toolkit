@@ -376,7 +376,19 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
 
 // === LocalStorage 持久化存储防抖与初始化 ===
 let debounceTimer;
+let pauseAutoSaveDepth = 0;
+
+function withAutoSavePaused(fn) {
+    pauseAutoSaveDepth++;
+    try {
+        return fn();
+    } finally {
+        pauseAutoSaveDepth = Math.max(0, pauseAutoSaveDepth - 1);
+    }
+}
+
 function debounceSave() {
+    if (pauseAutoSaveDepth > 0) return;
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
         const mode = htmlEl.getAttribute('data-mode') || 'single';
@@ -398,12 +410,18 @@ function restoreState() {
     const mode = htmlEl.getAttribute('data-mode') || 'single';
     if (mode === 'single') {
         const singleData = localStorage.getItem('json_single_data');
-        if (singleData !== null) editorLeft.setValue(singleData);
+        if (singleData !== null) {
+            withAutoSavePaused(() => editorLeft.setValue(singleData));
+        }
     } else {
         const compLeft = localStorage.getItem('json_compare_left');
         const compRight = localStorage.getItem('json_compare_right');
-        if (compLeft !== null) editorLeft.setValue(compLeft);
-        if (compRight !== null) editorRight.setValue(compRight);
+        if (compLeft !== null) {
+            withAutoSavePaused(() => editorLeft.setValue(compLeft));
+        }
+        if (compRight !== null) {
+            withAutoSavePaused(() => editorRight.setValue(compRight));
+        }
     }
 }
 
@@ -803,14 +821,21 @@ function unfoldAll(cm) {
 }
 
 // 层级折叠辅助 (重构版：内→外顺序折叠，确保展开外层时内层折叠仍然保持)
-function foldToLevel(cm, level) {
+function foldToLevel(cm, level, opts) {
     if (!cm) return;
+    var options = opts || {};
+    var freshDoc = !!options.freshDoc;
+    var chunked = !!options.chunked;
+    var chunkSize = Math.max(20, options.chunkSize || 140);
 
     suppressSync = true;
+    return new Promise(function(resolve) {
     cm.operation(function() {
-        // Step 1: 先全部展开
-        for (var i = cm.firstLine(); i <= cm.lastLine(); i++) {
-            cm.foldCode(CodeMirror.Pos(i, 0), null, "unfold");
+        // Step 1: 旧文档先全部展开，fresh 文档跳过该步骤
+        if (!freshDoc) {
+            for (var i = cm.firstLine(); i <= cm.lastLine(); i++) {
+                cm.foldCode(CodeMirror.Pos(i, 0), null, "unfold");
+            }
         }
 
         // Step 2: 计算每一行的真实结构深度
@@ -845,11 +870,35 @@ function foldToLevel(cm, level) {
         // Step 4: 按深度从深到浅排序后折叠（内→外），确保嵌套折叠被保留
         foldable.sort(function(a, b) { return b.depth - a.depth; });
         var rf = isDiffMode ? diffBracketFold : null;
-        for (var fi = 0; fi < foldable.length; fi++) {
-            cm.foldCode(CodeMirror.Pos(foldable[fi].line, 0), rf, "fold");
+        if (!chunked || foldable.length <= chunkSize) {
+            for (var fi = 0; fi < foldable.length; fi++) {
+                cm.foldCode(CodeMirror.Pos(foldable[fi].line, 0), rf, "fold");
+            }
+            suppressSync = false;
+            resolve();
+            return;
         }
+
+        var cursor = 0;
+        function foldChunk() {
+            var from = cursor;
+            var to = Math.min(cursor + chunkSize, foldable.length);
+            cm.operation(function() {
+                for (var fi = from; fi < to; fi++) {
+                    cm.foldCode(CodeMirror.Pos(foldable[fi].line, 0), rf, "fold");
+                }
+            });
+            cursor = to;
+            if (cursor < foldable.length) {
+                requestAnimationFrame(foldChunk);
+            } else {
+                suppressSync = false;
+                resolve();
+            }
+        }
+        requestAnimationFrame(foldChunk);
     });
-    suppressSync = false;
+    });
 }
 
 // === 工具栏按钮功能实现 ===
@@ -1044,12 +1093,18 @@ document.getElementById('action-btn').addEventListener('click', function() {
         setTimeout(() => {
             if (isSingle) {
                 const singleData = localStorage.getItem('json_single_data');
-                if (singleData !== null) editorLeft.setValue(singleData);
+                if (singleData !== null) {
+                    withAutoSavePaused(() => editorLeft.setValue(singleData));
+                }
             } else {
                 const compLeft = localStorage.getItem('json_compare_left');
                 const compRight = localStorage.getItem('json_compare_right');
-                if (compLeft !== null) editorLeft.setValue(compLeft);
-                if (compRight !== null) editorRight.setValue(compRight);
+                if (compLeft !== null) {
+                    withAutoSavePaused(() => editorLeft.setValue(compLeft));
+                }
+                if (compRight !== null) {
+                    withAutoSavePaused(() => editorRight.setValue(compRight));
+                }
             }
         }, 0);
 
@@ -1085,6 +1140,13 @@ let diffSyncCleanup = null;
 let diffTextMarks = [];
 let diffBookmarks = [];
 let suppressSync = false;
+let diffRenderToken = 0;
+
+let compareWorker = null;
+let compareRequestSeq = 0;
+let activeCompareRunSeq = 0;
+const pendingCompareRequests = new Map();
+let workerUnavailableNotified = false;
 
 // --- 预处理：递归排序键名 (A-Z字典序, Rule 4) ---
 function sortObjectKeys(obj) {
@@ -1308,14 +1370,29 @@ function matchByPrimaryKey(oldArr, newArr, pk) {
     return result;
 }
 
+let _stringifyWeakCache = (typeof WeakMap !== 'undefined') ? new WeakMap() : null;
+function resetStringifyCache() {
+    _stringifyWeakCache = (typeof WeakMap !== 'undefined') ? new WeakMap() : null;
+}
+
+function cachedStringify(val) {
+    if (val !== null && typeof val === 'object') {
+        if (_stringifyWeakCache && _stringifyWeakCache.has(val)) return _stringifyWeakCache.get(val);
+        var s = JSON.stringify(val);
+        if (_stringifyWeakCache) _stringifyWeakCache.set(val, s);
+        return s;
+    }
+    return JSON.stringify(val);
+}
+
 // 内容哈希配对：精确消除 → 相似度贪心（适用于混合类型或无主键的数组）
 function matchByContent(oldArr, newArr) {
     var oldUsed = new Array(oldArr.length);
     var newUsed = new Array(newArr.length);
 
     // 缓存 stringify
-    var oldStrs = oldArr.map(function(v) { return JSON.stringify(v); });
-    var newStrs = newArr.map(function(v) { return JSON.stringify(v); });
+    var oldStrs = oldArr.map(function(v) { return cachedStringify(v); });
+    var newStrs = newArr.map(function(v) { return cachedStringify(v); });
 
     // --- 精确匹配：用 Map 按内容分桶，同内容按出现顺序配对 ---
     var newBuckets = {};
@@ -1356,7 +1433,7 @@ function matchByContent(oldArr, newArr) {
                     if (v === null || typeof v !== 'object' || Array.isArray(v)) continue;
                     var keys = Object.keys(v);
                     var strs = {};
-                    for (var k = 0; k < keys.length; k++) strs[keys[k]] = JSON.stringify(v[keys[k]]);
+                    for (var k = 0; k < keys.length; k++) strs[keys[k]] = cachedStringify(v[keys[k]]);
                     caches.push({ idx: idx, keys: keys, strs: strs });
                 }
                 return caches;
@@ -1466,7 +1543,7 @@ function matchByContent(oldArr, newArr) {
 function objectSimilarity(a, b) {
     var isArrA = Array.isArray(a), isArrB = Array.isArray(b);
     if (isArrA !== isArrB) return 0;
-    if (isArrA) return JSON.stringify(a) === JSON.stringify(b) ? 1 : 0;
+    if (isArrA) return cachedStringify(a) === cachedStringify(b) ? 1 : 0;
 
     var keysA = Object.keys(a), keysB = Object.keys(b);
     var allKeys = {};
@@ -1477,7 +1554,7 @@ function objectSimilarity(a, b) {
 
     var same = 0;
     for (var k in allKeys) {
-        if (k in a && k in b && JSON.stringify(a[k]) === JSON.stringify(b[k])) same++;
+        if (k in a && k in b && cachedStringify(a[k]) === cachedStringify(b[k])) same++;
     }
     return same / total;
 }
@@ -1735,36 +1812,18 @@ function applyGutterMarkers(leftAnno, rightAnno) {
 }
 
 // --- 应用完整 Diff 渲染 ---
-function applyDiffToEditors(result) {
-    const { leftLines, rightLines, leftAnno, rightAnno, charDiffs } = result;
+function nextFrame() {
+    return new Promise(function(resolve) {
+        requestAnimationFrame(function() { resolve(); });
+    });
+}
 
-    clearDiffMarks();
-
-    // 为两侧编辑器统一加入 diff-gutter 列（保持 gutter 宽度一致 → 左右对齐）
-    const diffGutters = ['CodeMirror-linenumbers', 'CodeMirror-foldgutter', 'diff-gutter'];
-    editorLeft.setOption('gutters', diffGutters);
-    editorRight.setOption('gutters', diffGutters);
-
-    editorLeft.setValue(leftLines.join('\n'));
-    editorRight.setValue(rightLines.join('\n'));
-
-    // 批量应用行级背景色 + 字符级高亮（包在 operation 中避免逐行触发 DOM 重绘）
+function applyLineAnnotations(leftAnno, rightAnno) {
     editorLeft.operation(function() {
         for (var i = 0; i < leftAnno.length; i++) {
             if (leftAnno[i] === 'modified') editorLeft.addLineClass(i, 'background', 'diff-line-modified');
             else if (leftAnno[i] === 'removed') editorLeft.addLineClass(i, 'background', 'diff-line-removed');
             else if (leftAnno[i] === 'spacer') editorLeft.addLineClass(i, 'background', 'diff-line-spacer');
-        }
-        var charKeys = Object.keys(charDiffs);
-        for (var ci = 0; ci < charKeys.length; ci++) {
-            var idx = parseInt(charKeys[ci]);
-            var cd = charDiffs[idx];
-            if (cd.left.from < cd.left.to) {
-                diffTextMarks.push(editorLeft.markText(
-                    { line: idx, ch: cd.left.from }, { line: idx, ch: cd.left.to },
-                    { className: 'diff-char-old' }
-                ));
-            }
         }
     });
     editorRight.operation(function() {
@@ -1773,18 +1832,87 @@ function applyDiffToEditors(result) {
             else if (rightAnno[i] === 'added') editorRight.addLineClass(i, 'background', 'diff-line-added');
             else if (rightAnno[i] === 'spacer') editorRight.addLineClass(i, 'background', 'diff-line-spacer');
         }
-        var charKeys = Object.keys(charDiffs);
-        for (var ci = 0; ci < charKeys.length; ci++) {
-            var idx = parseInt(charKeys[ci]);
-            var cd = charDiffs[idx];
-            if (cd.right.from < cd.right.to) {
-                diffTextMarks.push(editorRight.markText(
-                    { line: idx, ch: cd.right.from }, { line: idx, ch: cd.right.to },
-                    { className: 'diff-char-new' }
-                ));
-            }
-        }
     });
+}
+
+function applyCharDiffMarksChunked(charDiffs, renderToken) {
+    const entries = Object.keys(charDiffs).map(function(k) {
+        return { idx: parseInt(k, 10), cd: charDiffs[k] };
+    });
+
+    if (!entries.length) return Promise.resolve();
+
+    const batchSize = 260;
+    let cursor = 0;
+
+    return new Promise(function(resolve) {
+        function step() {
+            if (renderToken !== diffRenderToken) {
+                resolve();
+                return;
+            }
+
+            const from = cursor;
+            const to = Math.min(cursor + batchSize, entries.length);
+
+            editorLeft.operation(function() {
+                for (var i = from; i < to; i++) {
+                    var entry = entries[i];
+                    var leftSeg = entry.cd.left;
+                    if (leftSeg.from < leftSeg.to) {
+                        diffTextMarks.push(editorLeft.markText(
+                            { line: entry.idx, ch: leftSeg.from },
+                            { line: entry.idx, ch: leftSeg.to },
+                            { className: 'diff-char-old' }
+                        ));
+                    }
+                }
+            });
+
+            editorRight.operation(function() {
+                for (var i = from; i < to; i++) {
+                    var entry = entries[i];
+                    var rightSeg = entry.cd.right;
+                    if (rightSeg.from < rightSeg.to) {
+                        diffTextMarks.push(editorRight.markText(
+                            { line: entry.idx, ch: rightSeg.from },
+                            { line: entry.idx, ch: rightSeg.to },
+                            { className: 'diff-char-new' }
+                        ));
+                    }
+                }
+            });
+
+            cursor = to;
+            if (cursor < entries.length) requestAnimationFrame(step);
+            else resolve();
+        }
+
+        requestAnimationFrame(step);
+    });
+}
+
+async function applyDiffToEditors(result) {
+    const { leftLines, rightLines, leftAnno, rightAnno, charDiffs } = result;
+    const renderToken = ++diffRenderToken;
+
+    clearDiffMarks();
+
+    // 为两侧编辑器统一加入 diff-gutter 列（保持 gutter 宽度一致 → 左右对齐）
+    const diffGutters = ['CodeMirror-linenumbers', 'CodeMirror-foldgutter', 'diff-gutter'];
+    editorLeft.setOption('gutters', diffGutters);
+    editorRight.setOption('gutters', diffGutters);
+
+    withAutoSavePaused(function() {
+        editorLeft.setValue(leftLines.join('\n'));
+        editorRight.setValue(rightLines.join('\n'));
+    });
+
+    applyLineAnnotations(leftAnno, rightAnno);
+    await applyCharDiffMarksChunked(charDiffs, renderToken);
+    if (renderToken !== diffRenderToken) return;
+    await nextFrame();
+    if (renderToken !== diffRenderToken) return;
 
     // 右侧框体边框
     applyRightBorders(rightAnno);
@@ -1910,8 +2038,120 @@ function enableDiffSync() {
     };
 }
 
+function setCompareLoading(loading) {
+    const btn = document.getElementById('action-btn');
+    if (!btn) return;
+    if (loading) {
+        btn.dataset.prevText = btn.textContent;
+        btn.textContent = '对比中...';
+        btn.disabled = true;
+        btn.style.opacity = '0.75';
+        btn.style.cursor = 'wait';
+    } else {
+        btn.textContent = btn.dataset.prevText || '执行比对';
+        btn.disabled = false;
+        btn.style.opacity = '';
+        btn.style.cursor = '';
+    }
+}
+
+function createWorkerError(error) {
+    if (!error || typeof error !== 'object') return { side: 'unknown', code: 'unknown', message: 'Worker 计算失败' };
+    return {
+        side: error.side || 'unknown',
+        code: error.code || 'unknown',
+        message: error.message || 'Worker 计算失败'
+    };
+}
+
+function ensureCompareWorker() {
+    if (!window.Worker) return null;
+    if (compareWorker) return compareWorker;
+
+    try {
+        compareWorker = new Worker('../js/json-diff-worker.js');
+    } catch (e) {
+        compareWorker = null;
+        return null;
+    }
+    compareWorker.addEventListener('message', function(e) {
+        const msg = e.data || {};
+        const pending = pendingCompareRequests.get(msg.requestId);
+        if (!pending) return;
+        pendingCompareRequests.delete(msg.requestId);
+        if (msg.ok) pending.resolve(msg.result);
+        else pending.reject(createWorkerError(msg.error));
+    });
+    compareWorker.addEventListener('error', function(err) {
+        pendingCompareRequests.forEach(function(pending, reqId) {
+            pending.reject(createWorkerError({
+                side: 'unknown',
+                code: 'worker_runtime',
+                message: (err && err.message) ? err.message : 'Worker 运行异常'
+            }));
+            pendingCompareRequests.delete(reqId);
+        });
+    });
+
+    return compareWorker;
+}
+
+function requestCompareInWorker(leftText, rightText, tabSize) {
+    const worker = ensureCompareWorker();
+    if (!worker) {
+        return Promise.reject(createWorkerError({
+            side: 'unknown',
+            code: 'worker_unavailable',
+            message: '当前环境不支持 Web Worker'
+        }));
+    }
+
+    const requestId = ++compareRequestSeq;
+    return new Promise(function(resolve, reject) {
+        pendingCompareRequests.set(requestId, { resolve, reject });
+        worker.postMessage({
+            requestId: requestId,
+            leftText: leftText,
+            rightText: rightText,
+            tabSize: tabSize
+        });
+    });
+}
+
+function formatJSONAsync(editor) {
+    return new Promise(function(resolve) {
+        formatJSON(editor, function(ok) { resolve(!!ok); });
+    });
+}
+
+async function smartFormatThenCompareViaWorker(runSeq) {
+    const leftOk = await formatJSONAsync(editorLeft);
+    if (!leftOk || runSeq !== activeCompareRunSeq) return false;
+
+    const rightOk = await formatJSONAsync(editorRight);
+    if (!rightOk || runSeq !== activeCompareRunSeq) return false;
+
+    const leftText = editorLeft.getValue().trim();
+    const rightText = editorRight.getValue().trim();
+    if (!leftText || !rightText) return false;
+
+    setCompareLoading(true);
+    try {
+        const result = await requestCompareInWorker(leftText, rightText, currentTabSize);
+        if (runSeq !== activeCompareRunSeq) return false;
+        await applyCompareResult(result, runSeq);
+        return true;
+    } catch (err) {
+        const message = (err && err.message) ? err.message : '未知错误';
+        alert('对比失败：\n' + message);
+        return false;
+    } finally {
+        if (runSeq === activeCompareRunSeq) setCompareLoading(false);
+    }
+}
+
 // --- 入口：执行比对 ---
-function runCompare() {
+async function runCompare() {
     const leftText = editorLeft.getValue().trim();
     const rightText = editorRight.getValue().trim();
 
@@ -1920,26 +2160,45 @@ function runCompare() {
         return;
     }
 
-    // 先格式化两边（含智能容错），全部成功后再执行对比
-    smartFormatThenCompare();
-}
+    const runSeq = ++activeCompareRunSeq;
+    setCompareLoading(true);
 
-// 依次格式化左右两侧，全部成功后执行对比
-function smartFormatThenCompare() {
-    formatJSON(editorLeft, function(leftOk) {
-        if (!leftOk) return;
-        formatJSON(editorRight, function(rightOk) {
-            if (!rightOk) return;
+    try {
+        const result = await requestCompareInWorker(leftText, rightText, currentTabSize);
+        if (runSeq !== activeCompareRunSeq) return;
+        await applyCompareResult(result, runSeq);
+    } catch (err) {
+        if (runSeq !== activeCompareRunSeq) return;
 
-            var leftObj, rightObj;
-            try { leftObj = JSON.parse(editorLeft.getValue()); }
-            catch(e) { alert('左侧 JSON 解析失败：\n' + e.message); return; }
-            try { rightObj = JSON.parse(editorRight.getValue()); }
-            catch(e) { alert('右侧 JSON 解析失败：\n' + e.message); return; }
+        // 仅解析失败时回落到现有智能修复流程，保持原容错体验
+        if (err && err.code === 'parse_error') {
+            setCompareLoading(false);
+            await smartFormatThenCompareViaWorker(runSeq);
+            return;
+        }
 
-            executeCompare(leftObj, rightObj);
-        });
-    });
+        // Worker 不可用时保留旧路径兜底
+        if (err && err.code === 'worker_unavailable') {
+            if (!workerUnavailableNotified) {
+                workerUnavailableNotified = true;
+                alert('当前环境不支持后台线程加速，已切换兼容模式（性能较低）。建议通过 http/https 方式打开页面。');
+            }
+            try {
+                const leftObj = JSON.parse(leftText);
+                const rightObj = JSON.parse(rightText);
+                await executeCompare(leftObj, rightObj, runSeq);
+                return;
+            } catch (parseErr) {
+                await smartFormatThenCompareViaWorker(runSeq);
+                return;
+            }
+        }
+
+        const message = (err && err.message) ? err.message : '未知错误';
+        alert('对比失败：\n' + message);
+    } finally {
+        if (runSeq === activeCompareRunSeq) setCompareLoading(false);
+    }
 }
 
 function tryParse(text) {
@@ -2106,7 +2365,37 @@ function highlightIssues(cm, positions, markers) {
     });
 }
 
-function executeCompare(leftObj, rightObj) {
+async function applyCompareResult(result, runSeq) {
+    if (runSeq !== undefined && runSeq !== activeCompareRunSeq) return;
+
+    // 存储注解供徽章系统读取
+    window._diffRightAnno = result.rightAnno;
+    window._diffLeftAnno = result.leftAnno;
+
+    // 渲染到编辑器
+    isDiffMode = true;
+    await applyDiffToEditors(result);
+    if (runSeq !== undefined && runSeq !== activeCompareRunSeq) return;
+
+    // 切换 fold gutter 为自定义 range finder
+    editorLeft.setOption('foldGutter', { rangeFinder: diffBracketFold });
+    editorRight.setOption('foldGutter', { rangeFinder: diffBracketFold });
+
+    // 启用双边同步
+    enableDiffSync();
+
+    // fresh 文档快速路径：无需先全展开
+    await foldToLevel(editorLeft, 1, { freshDoc: true, chunked: true, chunkSize: 120 });
+    if (runSeq !== undefined && runSeq !== activeCompareRunSeq) return;
+    await foldToLevel(editorRight, 1, { freshDoc: true, chunked: true, chunkSize: 120 });
+    if (runSeq !== undefined && runSeq !== activeCompareRunSeq) return;
+
+    // 更新折叠透视徽章
+    scheduleBadgeUpdate();
+}
+
+async function executeCompare(leftObj, rightObj, runSeq) {
+    resetStringifyCache();
     // 步骤1: 递归键名排序 (Rule 4)
     const oldSorted = sortObjectKeys(leftObj);
     const newSorted = sortObjectKeys(rightObj);
@@ -2116,27 +2405,6 @@ function executeCompare(leftObj, rightObj) {
 
     // 步骤3: 生成对齐行输出
     const result = generateAlignedDiff(oldSorted, newSorted, diffTree, currentTabSize);
-
-    // 存储注解供徽章系统读取
-    window._diffRightAnno = result.rightAnno;
-    window._diffLeftAnno = result.leftAnno;
-
-    // 步骤4: 渲染到编辑器
-    isDiffMode = true;
-    applyDiffToEditors(result);
-
-    // 步骤5: 切换 fold gutter 为自定义 range finder
-    editorLeft.setOption('foldGutter', { rangeFinder: diffBracketFold });
-    editorRight.setOption('foldGutter', { rangeFinder: diffBracketFold });
-
-    // 步骤6: 启用双边同步
-    enableDiffSync();
-
-    // 步骤7: 折叠到第一级
-    foldToLevel(editorLeft, 1);
-    foldToLevel(editorRight, 1);
-
-    // 步骤8: 更新折叠透视徽章
-    scheduleBadgeUpdate();
+    await applyCompareResult(result, runSeq);
 }
 
