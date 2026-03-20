@@ -1,4 +1,4 @@
-﻿// === 鏈湴璁剧疆鎸佷箙鍖?(localStorage) ===
+// === Section ===
 const STORAGE_KEY = 'json_diff_settings';
 
 const defaultSettings = {
@@ -96,7 +96,7 @@ try {
                 ...savedShortcuts
             }
         };
-        // 涓€娆℃€ц縼绉伙細鏃х増缂撳瓨榛樿鏄?vscode 涓婚 + Consolas 瀛椾綋锛屽崌绾у埌鏂伴粯璁?
+        // note
         if (!parsed._migrated_v2) {
             if (parsed.scheme === 'vscode') userSettings.scheme = defaultSettings.scheme;
             if (parsed.font === "Consolas, 'Courier New', monospace") userSettings.font = defaultSettings.font;
@@ -116,7 +116,7 @@ function saveSettings() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(userSettings));
 }
 
-// === CodeMirror 鍒濆瀹炰緥 ===
+// === Section ===
 let currentTabSize = userSettings.tabSize;
 let shortcuts = userSettings.shortcuts;
 
@@ -132,7 +132,7 @@ const cmOptions = {
 const editorLeft = CodeMirror.fromTextArea(document.getElementById("json-input-left"), cmOptions);
 const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-right"), cmOptions);
 
-// === 鎷彿浣滅敤鍩熼珮浜?& 缂╄繘杈呭姪绾?===
+// === Section ===
 (function initBracketScopeAndGuides() {
     var OPENERS = '{[', CLOSERS = '}]', PAIRS = {'{':'}', '[':']'};
 
@@ -153,11 +153,11 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
             return el;
         }
 
-        // 浠庡厜鏍囦綅缃悜澶栨壂鎻忥紝鎵惧埌鏈€杩戠殑鏈棴鍚堟嫭鍙峰
+        // note
 
         function findEnclosingBrackets(cursor) {
             var depth = 0, openPos = null, openChar = null;
-            // 鍚戝乏鎵弿鎵惧紑鎷彿
+            // note
 
             for (var l = cursor.line; l >= 0; l--) {
                 var text = editor.getLine(l);
@@ -176,7 +176,7 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
                 if (openPos) break;
             }
             if (!openPos) return null;
-            // 鍚戝彸鎵弿鎵鹃厤瀵归棴鎷彿
+            // note
 
             var closeChar = PAIRS[openChar];
             depth = 0;
@@ -199,7 +199,7 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
             return null;
         }
 
-        // 娓叉煋鍙鍖哄煙鐨勭缉杩涜緟鍔╃嚎
+        // note
 
         function renderGuides() {
             var vp = editor.getViewport();
@@ -208,7 +208,7 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
             var wRect = wrapper.getBoundingClientRect();
             var guideIdx = 0;
 
-            // 鏀堕泦鍙琛岀缉杩涚骇鍒?
+            // note
             var lines = [];
             for (var i = vp.from; i < vp.to; i++) {
                 var text = editor.getLine(i);
@@ -221,7 +221,7 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
                 }
                 lines.push({ num: i, level: text.trim() === '' ? -1 : Math.floor(sp / currentTabSize), empty: text.trim() === '' });
             }
-            // 绌鸿缁ф壙鐩搁偦闈炵┖琛岀殑缂╄繘绾у埆
+            // note
 
             for (var i = 0; i < lines.length; i++) {
                 if (lines[i].empty) {
@@ -235,13 +235,13 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
                 return;
             }
 
-            // 璁＄畻鍚勭骇x鍧愭爣锛堝彧绠椾竴娆★級
+            // note
 
             var maxLvl = 0;
             for (var i = 0; i < lines.length; i++) if (lines[i].level > maxLvl) maxLvl = lines[i].level;
             var xBase = editor.charCoords({line: lines[0].num, ch: 0}, 'window').left - wRect.left;
 
-            // 閬嶅巻姣忎釜缂╄繘绾у埆锛屾壘鍒拌繛缁鍧楀苟缁樺埗杈呭姪绾?
+            // note
             for (var lvl = 1; lvl <= maxLvl; lvl++) {
                 var runStart = -1;
                 for (var i = 0; i <= lines.length; i++) {
@@ -262,11 +262,11 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
                     }
                 }
             }
-            // 闅愯棌澶氫綑鐨勭紦瀛樺厓绱?
+            // note
             for (var i = guideIdx; i < guidePool.length; i++) guidePool[i].style.display = 'none';
         }
 
-        // 鍏夋爣娲诲姩锛氭壘鎷彿浣滅敤鍩?+ 楂樹寒 + 鑱斿姩杈呭姪绾?
+        // note
         function onCursorActivity() {
             bracketMarks.forEach(function(m) { m.clear(); });
             bracketMarks = [];
@@ -283,7 +283,7 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
                     result.close, {line: result.close.line, ch: result.close.ch + 1},
                     {className: 'cm-bracket-highlight'}
                 ));
-                // 婵€娲昏緟鍔╃嚎绾у埆 = 寮€鎷彿鎵€鍦ㄨ缂╄繘绾у埆 + 1锛堝唴瀹圭缉杩涚骇鍒級
+                // note
 
                 var openText = editor.getLine(result.open.line);
                 var sp = 0;
@@ -315,13 +315,13 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
     var leftGuides = setup(editorLeft);
     var rightGuides = setup(editorRight);
 
-    // 鏆撮湶鍒锋柊鎺ュ彛渚涘瓧浣?瀛楀彿/缂╄繘鍙樻洿鏃惰皟鐢?
+    // note
     window._refreshIndentGuides = function() {
         leftGuides.scheduleRender();
         rightGuides.scheduleRender();
     };
 
-    // === Alt+鍙屽嚮閿悕锛氶€変腑鏁翠釜鍊煎苟澶嶅埗 ===
+    // === Section ===
 
     function setupAltDblClick(editor) {
         editor.getWrapperElement().addEventListener('dblclick', function(e) {
@@ -330,7 +330,7 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
             var pos = editor.coordsChar({left: e.clientX, top: e.clientY});
             var lineText = editor.getLine(pos.line);
             if (!lineText) return;
-            // 鎵捐繖涓€琛岀殑鍐掑彿浣嶇疆锛堥敭鍊煎垎闅旂锛?
+            // note
             var colonIdx = -1;
             var inStr = false;
             for (var i = 0; i < lineText.length; i++) {
@@ -338,7 +338,7 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
                 if (!inStr && lineText[i] === ':') { colonIdx = i; break; }
             }
             if (colonIdx === -1) return;
-            // 鍐掑彿鍚庤烦杩囩┖鏍硷紝鎵惧埌鍊艰捣鐐?
+            // note
             var valStart = colonIdx + 1;
             while (valStart < lineText.length && lineText[valStart] === ' ') valStart++;
             if (valStart >= lineText.length) return;
@@ -346,7 +346,7 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
             var from = {line: pos.line, ch: valStart};
             var to;
             if (startChar === '{' || startChar === '[') {
-                // 瀵硅薄/鏁扮粍锛氭壘閰嶅鐨勯棴鎷彿
+                // note
 
                 var closeChar = startChar === '{' ? '}' : ']';
                 var depth = 0, last = editor.lastLine();
@@ -367,7 +367,7 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
                 }
                 if (!to) return;
             } else {
-                // 绠€鍗曞€硷細鍙栧埌琛屽熬锛堝幓鎺夊熬閮ㄩ€楀彿锛?
+                // note
                 var end = lineText.length;
                 var trimmed = lineText.trimEnd();
                 if (trimmed.endsWith(',')) end = trimmed.length - 1;
@@ -383,7 +383,7 @@ const editorRight = CodeMirror.fromTextArea(document.getElementById("json-input-
     setupAltDblClick(editorRight);
 })();
 
-// === LocalStorage 鎸佷箙鍖栧瓨鍌ㄩ槻鎶栦笌鍒濆鍖?===
+// === Section ===
 let debounceTimer;
 let pauseAutoSaveDepth = 0;
 
@@ -410,10 +410,10 @@ function debounceSave() {
     }, 500);
 }
 
-// 缁戝畾鍙樻洿浜嬩欢浠ヨЕ鍙戞湰鍦颁繚瀛?editorLeft.on('change', debounceSave);
+// note
 editorRight.on('change', debounceSave);
 
-// 椤甸潰鍔犺浇鏃剁殑鐘舵€佽繕鍘?
+// note
 function restoreState() {
 
     const mode = htmlEl.getAttribute('data-mode') || 'single';
@@ -434,7 +434,7 @@ function restoreState() {
     }
 }
 
-// === 璁剧疆閫昏緫涓庝富棰樺垏鎹?===
+// === Section ===
 const htmlEl = document.documentElement;
 const themeToggleBtn = document.getElementById('theme-toggle');
 const schemeSelect = document.getElementById('scheme-select');
@@ -443,7 +443,7 @@ const settingsBtn = document.getElementById('settings-btn');
 const settingsModal = document.getElementById('settings-modal');
 const closeSettingsBtn = document.getElementById('close-settings');
 
-// 鍒濆鍖栧簲鐢ㄨ缃?
+// note
 function applySettings() {
     htmlEl.setAttribute('data-theme', userSettings.theme);
     htmlEl.setAttribute('data-scheme', userSettings.scheme);
@@ -481,7 +481,7 @@ fontSelect.addEventListener('change', (e) => {
     });
     userSettings.font = font;
     saveSettings();
-    // 鍒锋柊闃叉琛屽彿閿欎綅
+    // note
     editorLeft.refresh();
     editorRight.refresh();
 });
@@ -489,7 +489,7 @@ fontSelect.addEventListener('change', (e) => {
 settingsBtn.addEventListener('click', () => { settingsModal.style.display = 'flex'; });
 closeSettingsBtn.addEventListener('click', () => { settingsModal.style.display = 'none'; });
 
-// === 鑷畾涔夊瓧浣撳姩鎬佸姞杞斤紙浠?fonts/ 鐩綍璇诲彇 fonts.json 娓呭崟锛?==
+// === Section ===
 (function loadCustomFonts() {
     var select = document.getElementById('font-select');
     if (!select) return;
@@ -514,7 +514,7 @@ closeSettingsBtn.addEventListener('click', () => { settingsModal.style.display =
             if (group.children.length > 0) {
                 select.insertBefore(group, select.firstChild);
             }
-            // 鎭㈠宸蹭繚瀛樼殑瀛椾綋閫夐」锛堣嚜瀹氫箟瀛椾綋閫夐」鍒氬姞杞藉畬鎴愶紝閲嶆柊鍖归厤锛?
+            // note
             if (userSettings.font) {
                 select.value = userSettings.font;
                 if (select.value !== userSettings.font) {
@@ -530,23 +530,23 @@ closeSettingsBtn.addEventListener('click', () => { settingsModal.style.display =
         .catch(function() {});
 })();
 
-// Tab 鍒囨崲閫昏緫
+// note
 const tabBtns = document.querySelectorAll('.tab-btn');
 const settingsPanes = document.querySelectorAll('.settings-pane');
 tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-        // 绉婚櫎鎵€鏈?active
+        // note
         tabBtns.forEach(b => b.classList.remove('active'));
         settingsPanes.forEach(p => p.classList.remove('active'));
         
-        // 娣诲姞褰撳墠 active
+        // note
         btn.classList.add('active');
         const targetId = btn.getAttribute('data-target');
         document.getElementById(targetId).classList.add('active');
     });
 });
 
-// 瀛椾綋澶у皬璋冩暣閫昏緫
+// note
 const fontSizeSlider = document.getElementById('font-size-slider');
 const fontSizeVal = document.getElementById('font-size-val');
 
@@ -567,7 +567,7 @@ fontSizeSlider.addEventListener('input', (e) => {
     editorRight.refresh();
 });
 
-// 缂╄繘澶у皬璋冩暣閫昏緫
+// note
 const tabSizeSlider = document.getElementById('tab-size-slider');
 const tabSizeVal = document.getElementById('tab-size-val');
 
@@ -585,16 +585,17 @@ if (tabSizeSlider) {
         userSettings.tabSize = size;
         saveSettings();
         
-        // 瀹炴椂閲嶆柊鏍煎紡鍖栫幇鏈夌殑 JSON 鏁版嵁
+        // note
 
         const silentFormat = (editor) => {
             try {
                 const val = editor.getValue();
                 if (!val.trim()) return;
                 const obj = JSON.parse(val);
-                // 浣跨敤鏂扮殑缂╄繘灞傜骇閲嶆柊鐢熸垚瀛楃涓?                editor.setValue(JSON.stringify(obj, null, currentTabSize));
+                // note
+                editor.setValue(JSON.stringify(obj, null, currentTabSize));
             } catch(err) {
-                // 濡傛灉褰撳墠缂栬緫鍣ㄩ噷鐨?JSON 鏍煎紡涓嶅悎娉曪紝灏变笉寮哄埗鍒锋柊瀹冿紝涔熶笉寮圭獥鎶ラ敊鎵撴壈鐢ㄦ埛
+                // note
             }
         };
         silentFormat(editorLeft);
@@ -602,7 +603,7 @@ if (tabSizeSlider) {
     });
 }
 
-// 瀛椾綋绮楃粏璋冩暣閫昏緫
+// note
 const fontWeightSlider = document.getElementById('font-weight-slider');
 const fontWeightVal = document.getElementById('font-weight-val');
 
@@ -623,14 +624,14 @@ if (fontWeightSlider) {
     });
 }
 
-// 蹇嵎閿崟鑾峰綍鍏?
+// note
 function bindShortcutInput(inputId, targetObjKey) {
 
     const input = document.getElementById(inputId);
     
     input.addEventListener('focus', () => {
-        input.value = '璇锋寜涓嬬粍鍚堥敭...';
-        input.style.color = '#ef4444'; // 绾㈣壊鎻愮ず褰曞叆涓?
+        input.value = '请按下组合键...';
+        input.style.color = '#ef4444'; // recording hint
     });
 
     input.addEventListener('blur', () => {
@@ -650,18 +651,18 @@ function bindShortcutInput(inputId, targetObjKey) {
 
     input.addEventListener('keydown', (e) => {
         e.preventDefault();
-        e.stopPropagation(); // 闃绘鍐掓场
+        e.stopPropagation(); // prevent bubbling
         
         const isCtrl = e.ctrlKey || e.metaKey;
         const isShift = e.shiftKey;
         const isAlt = e.altKey;
         
-        // 鎶撳彇鎸夐敭鐨勭墿鐞嗙墿鐞嗙紪鐮侊紙蹇界暐澶у皬鍐欏拰Shift褰卞搷锛?
+        // note
         const code = e.code || "";
         const key = e.key.toUpperCase();
         
         if (key === 'ESCAPE') {
-            // 浠呬粎鍙栨秷褰曞叆鐘舵€侊紝涓嶄慨鏀瑰師蹇嵎閿紝涓嶅啋娉¤Е鍙戝叧闂獥鍙?
+            // note
             input.blur();
             return;
         }
@@ -679,7 +680,7 @@ function bindShortcutInput(inputId, targetObjKey) {
         if (isShift) displayStr.push('Shift');
         if (isAlt) displayStr.push('Alt');
         
-        // 濡傛灉鍙槸鎸変笅浜嗕慨楗伴敭锛堣繕娌℃寜瀹炰綋閿級
+        // note
 
         const isModifier = ['ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight'].includes(code) || ['CONTROL', 'SHIFT', 'ALT', 'META'].includes(key);
         if (isModifier) {
@@ -687,7 +688,7 @@ function bindShortcutInput(inputId, targetObjKey) {
             return;
         }
         
-        // 鏍煎紡鍖栨寜閿殑鏄剧ず鍚?
+        // note
         let displayKey = key;
         if (code.startsWith('Key')) displayKey = code.replace('Key', '');
         else if (code.startsWith('Digit')) displayKey = code.replace('Digit', '');
@@ -695,7 +696,7 @@ function bindShortcutInput(inputId, targetObjKey) {
 
         displayStr.push(displayKey);
         
-        // 淇濆瓨鎸夐敭鐨勭粍鍚堢姸鎬併€乧ode(鐢ㄦ潵鍖归厤鐗╃悊鎸夐敭)鍜岀敤浜庢樉绀虹殑displayKey
+        // note
 
         const newShortcut = { ctrl: isCtrl, shift: isShift, alt: isAlt, code: code, key: key, displayKey: displayKey };
         shortcuts[targetObjKey] = newShortcut;
@@ -706,16 +707,16 @@ function bindShortcutInput(inputId, targetObjKey) {
         input.blur();
     });
     
-    // 鍒濆鍖栨椂锛屽鏋滃凡鏈夊€煎垯瑙﹀彂涓€娆lur鏉ュ洖鏄?
+    // note
     if (input) input.dispatchEvent(new Event('blur'));
 }
 bindShortcutInput('shortcut-lv1', 'lv1');
 bindShortcutInput('shortcut-lv2', 'lv2');
 bindShortcutInput('shortcut-unfold', 'unfold');
 
-// 鍏ㄥ眬蹇嵎閿嫤鎴櫒 (浣跨敤 capture 鎹曡幏闃舵锛岄槻姝㈣ CodeMirror 鍐呴儴鍚炴帀)
+// note
 window.addEventListener('keydown', (e) => {
-    // 1. 缁熶竴鐨?Escape 閿€€鍑洪€昏緫
+    // note
 
     if (e.key === 'Escape') {
         const modals = document.querySelectorAll('.modal-overlay');
@@ -733,7 +734,7 @@ window.addEventListener('keydown', (e) => {
         }
     }
 
-    // 鍙湁褰撶劍鐐瑰湪璁剧疆闈㈡澘鐨勨€滆緭鍏ユ鈥濋噷锛堟鍦ㄥ綍鍒舵寜閿級鏃讹紝鎵嶄笉瑙﹀彂鍔熻兘
+    // note
 
     if (e.target.tagName === 'INPUT' && e.target.closest('#settings-modal')) return;
 
@@ -748,7 +749,7 @@ window.addEventListener('keydown', (e) => {
         const defKeyFromCode = defCode.replace(/^Digit/, '').replace(/^Numpad/, '').replace(/^Key/, '').toUpperCase();
         const eventKeyFromCode = eventCode.replace(/^Digit/, '').replace(/^Numpad/, '').replace(/^Key/, '').toUpperCase();
 
-        // 鍖归厤閫昏緫锛氫紭鍏堢敤 Code 鐗╃悊鎸夐敭鍖归厤锛屽叾娆＄敤 Key 瀛楃鍖归厤
+        // note
 
         const codeMatch = !!(defCode && eventCode && eventCode === defCode);
         const keyMatch = !!(
@@ -783,9 +784,9 @@ window.addEventListener('keydown', (e) => {
         unfoldAll(editorLeft); unfoldAll(editorRight);
         if (isDiffMode) scheduleBadgeUpdate(true);
     }
-}, true); // <- 鍏抽敭鐐癸細璁剧疆涓?true锛屽湪鎹曡幏闃舵鎷︽埅浜嬩欢
+}, true); // capture phase: intercept before editor handles shortcuts
 
-// 鑷畾涔夌函鎷彿鍖归厤鐨?fold range finder锛堜笉渚濊禆 JSON tokenizer锛孌iff 妯″紡涓嬩篃鍙敤锛?
+// note
 function diffBracketFold(cm, start) {
 
     var line = cm.getLine(start.line);
@@ -838,7 +839,7 @@ function unfoldAll(cm) {
     suppressSync = false;
 }
 
-// 灞傜骇鎶樺彔杈呭姪 (閲嶆瀯鐗堬細鍐呪啋澶栭『搴忔姌鍙狅紝纭繚灞曞紑澶栧眰鏃跺唴灞傛姌鍙犱粛鐒朵繚鎸?
+// note
 function foldToLevel(cm, level, opts) {
     if (!cm) return;
     var options = opts || {};
@@ -849,14 +850,14 @@ function foldToLevel(cm, level, opts) {
     suppressSync = true;
     return new Promise(function(resolve) {
     cm.operation(function() {
-        // Step 1: 鏃ф枃妗ｅ厛鍏ㄩ儴灞曞紑锛宖resh 鏂囨。璺宠繃璇ユ楠?
+        // note
         if (!freshDoc) {
             for (var i = cm.firstLine(); i <= cm.lastLine(); i++) {
                 cm.foldCode(CodeMirror.Pos(i, 0), null, "unfold");
             }
         }
 
-        // Step 2: 璁＄畻姣忎竴琛岀殑鐪熷疄缁撴瀯娣卞害
+        // note
 
         var depths = [];
         var currentDepth = 0;
@@ -871,7 +872,7 @@ function foldToLevel(cm, level, opts) {
             }
         }
 
-        // Step 3: 鏀堕泦鎵€鏈夊湪鐩爣娣卞害(鍚洿娣?鐨勫彲鎶樺彔琛?
+        // note
         var foldable = [];
         for (var i = cm.firstLine(); i <= cm.lastLine(); i++) {
             if (depths[i] >= level) {
@@ -886,7 +887,7 @@ function foldToLevel(cm, level, opts) {
             }
         }
 
-        // Step 4: 鎸夋繁搴︿粠娣卞埌娴呮帓搴忓悗鎶樺彔锛堝唴鈫掑锛夛紝纭繚宓屽鎶樺彔琚繚鐣?
+        // note
         foldable.sort(function(a, b) { return b.depth - a.depth; });
 
         var rf = isDiffMode ? diffBracketFold : null;
@@ -921,9 +922,9 @@ function foldToLevel(cm, level, opts) {
     });
 }
 
-// === 宸ュ叿鏍忔寜閽姛鑳藉疄鐜?===
+// === Section ===
 
-// 鏍煎紡鍖栧姛鑳斤紙甯︽櫤鑳藉閿欙細瑙ｆ瀽澶辫触鏃惰嚜鍔ㄦ娴嬮棶棰樺苟鎻愪緵淇锛?// 褰撳墠娲昏穬鐨勯棶棰橀€氱煡鏉＄姸鎬侊紙鐢ㄤ簬娓呯悊锛?
+// note
 var _activeIssueBar = null;
 
 
@@ -940,7 +941,7 @@ function formatJSON(editor, callback) {
     var val = editor.getValue();
     if (!val.trim()) { if (callback) callback(false); return; }
 
-    // 鍏堟竻闄や笂涓€娆＄殑閫氱煡鏉″拰鏍囪
+    // note
     dismissIssueBar();
 
     var result = tryParse(val);
@@ -950,41 +951,41 @@ function formatJSON(editor, callback) {
         return;
     }
 
-    // 瑙ｆ瀽澶辫触 鈫?妫€娴嬮棶棰?
+    // note
     var issues = detectJsonIssues(val);
     if (issues.fixes.length === 0) {
-        alert('鏍煎紡鍖栧け璐ワ紝璇锋鏌?JSON 璇硶鏄惁姝ｇ‘\n' + result.err);
+        alert('格式化失败，请检查 JSON 语法是否正确\n' + result.err);
         if (callback) callback(false);
         return;
     }
 
-    // 鍖哄垎鍙嚜鍔ㄤ慨澶嶇殑 vs 浠呮爣璁扮殑
+    // note
 
     var autoFixable = issues.fixes.filter(function(f) { return !f.manualOnly; });
 
-    // 楂樹寒闂浣嶇疆
+    // note
 
     var markers = [];
     highlightIssues(editor, issues.positions, markers);
 
-    // 鏋勫缓鎽樿鏂囨湰
+    // note
 
     var side = (editor === editorLeft) ? '左侧' : '右侧';
-    var summary = '?' + side + '?';
-    summary += issues.fixes.map(function(f) { return f.name + ' ?' + f.count; }).join('?');
+    var summary = '【' + side + '】';
+    summary += issues.fixes.map(function(f) { return f.name + ' ×' + f.count; }).join('；');
 
-    // 显示浮动通知条
+    // note
     showIssueBar(editor, summary, autoFixable.length > 0, markers, issues, callback);
 }
 
 function showIssueBar(editor, summary, hasAutoFix, markers, issues, callback) {
-    // 鎵惧埌缂栬緫鍣ㄥ搴旂殑闈㈡澘瀹瑰櫒
+    // note
 
     var cmEl = editor.getWrapperElement();
     var panel = cmEl.closest('.editor-panel');
     if (!panel) panel = cmEl.parentElement;
 
-    // 鍒涘缓閫氱煡鏉?
+    // note
     var bar = document.createElement('div');
     bar.className = 'issue-bar';
 
@@ -999,15 +1000,16 @@ function showIssueBar(editor, summary, hasAutoFix, markers, issues, callback) {
     if (hasAutoFix) {
         var fixBtn = document.createElement('button');
         fixBtn.className = 'issue-bar-fix-btn';
-        fixBtn.textContent = '鑷姩淇';
+        fixBtn.textContent = '自动修复';
         fixBtn.addEventListener('click', function() {
-            // 娓呴櫎褰撳墠鏍囪
+            // note
             markers.forEach(function(m) { m.clear(); });
             markers.length = 0;
 
             var fixResult = tryParse(issues.fixed);
             if (!fixResult.ok) {
-                // 淇鍚庝粛澶辫触 鈫?鍥炲啓淇鍚庢枃鏈紝閲嶆柊妫€娴嬪墿浣欓棶棰?                editor.setValue(issues.fixed);
+                // note
+                editor.setValue(issues.fixed);
 
                 var remaining = detectJsonIssues(issues.fixed);
                 if (remaining.fixes.length > 0) {
@@ -1033,8 +1035,8 @@ function showIssueBar(editor, summary, hasAutoFix, markers, issues, callback) {
 
     var dismissBtn = document.createElement('button');
     dismissBtn.className = 'issue-bar-dismiss-btn';
-    dismissBtn.textContent = '脳';
-    dismissBtn.title = '鍏抽棴';
+    dismissBtn.textContent = '×';
+    dismissBtn.title = '关闭';
     dismissBtn.addEventListener('click', function() {
         dismissIssueBar();
         if (callback) callback(false);
@@ -1043,7 +1045,7 @@ function showIssueBar(editor, summary, hasAutoFix, markers, issues, callback) {
 
     bar.appendChild(btnGroup);
 
-    // 鎻掑叆鍒伴潰鏉块《閮紙toolbar 涓嬫柟锛?
+    // note
     var toolbar = panel.querySelector('.panel-toolbar');
     if (toolbar && toolbar.nextSibling) {
         panel.insertBefore(bar, toolbar.nextSibling);
@@ -1054,32 +1056,32 @@ function showIssueBar(editor, summary, hasAutoFix, markers, issues, callback) {
     _activeIssueBar = { barEl: bar, markers: markers };
 }
 
-// 澶嶅埗鍔熻兘
+// note
 function copyContent(editor) {
     const val = editor.getValue();
     navigator.clipboard.writeText(val).then(() => {
         const btn = document.activeElement;
-        const originalTitle = btn.title || '澶嶅埗';
-        btn.title = '绋嶇瓑锛屽鍒舵垚鍔?';
+        const originalTitle = btn.title || '复制';
+        btn.title = '复制成功';
         setTimeout(() => btn.title = originalTitle, 2000);
     }).catch(() => {
-        alert('澶嶅埗澶辫触锛岃灏濊瘯鎵嬪姩澶嶅埗');
+        alert('复制失败，请尝试手动复制');
     });
 }
 
-// 缁戝畾宸︿晶闈㈡澘鎸夐挳
+// note
 document.getElementById('clear-left').addEventListener('click', () => editorLeft.setValue(''));
 document.getElementById('format-left').addEventListener('click', () => formatJSON(editorLeft));
 document.getElementById('copy-left').addEventListener('click', () => copyContent(editorLeft));
 document.getElementById('search-left').addEventListener('click', () => editorLeft.execCommand('find'));
 
-// 缁戝畾鍙充晶闈㈡澘鎸夐挳
+// note
 document.getElementById('clear-right').addEventListener('click', () => editorRight.setValue(''));
 document.getElementById('format-right').addEventListener('click', () => formatJSON(editorRight));
 document.getElementById('copy-right').addEventListener('click', () => copyContent(editorRight));
 document.getElementById('search-right').addEventListener('click', () => editorRight.execCommand('find'));
 
-// 涓绘搷浣滄寜閽紙鍗曟ā寮?鏍煎紡鍖栵紝瀵规瘮妯″紡=鎵ц姣斿锛?
+// note
 document.getElementById('action-btn').addEventListener('click', function() {
 
     if ((document.documentElement.getAttribute('data-mode') || 'single') === 'single') {
@@ -1089,7 +1091,7 @@ document.getElementById('action-btn').addEventListener('click', function() {
     }
 });
 
-// ==================== 妯″紡鍒囨崲锛堝崟 JSON 鈫?瀵规瘮锛?====================
+// === Section ===
 (function initModeToggle() {
     const htmlEl = document.documentElement;
     const modeBtn = document.getElementById('mode-toggle');
@@ -1099,7 +1101,7 @@ document.getElementById('action-btn').addEventListener('click', function() {
     const rightPanel = document.querySelectorAll('.editor-panel')[1];
 
     function setMode(mode, isInit) {
-        // 鍒囨崲鍓嶅厛淇濆瓨褰撳墠妯″紡鐨勬暟鎹紙鍒濆鍖栨椂涓嶉渶瑕佷繚瀛橈級
+        // note
 
         if (!isInit) {
             var prevMode = htmlEl.getAttribute('data-mode') || 'single';
@@ -1115,7 +1117,7 @@ document.getElementById('action-btn').addEventListener('click', function() {
         localStorage.setItem('json_mode', mode);
         const isSingle = mode === 'single';
 
-        // 加载目标模式的数据
+        // note
         setTimeout(() => {
 
             if (isSingle) {
@@ -1135,7 +1137,7 @@ document.getElementById('action-btn').addEventListener('click', function() {
             }
         }, 0);
 
-        // 切换标题与按钮
+        // note
         pageTitle.textContent = isSingle ? 'JSON 格式化' : 'JSON 差异比对';
         actionBtn.textContent = isSingle ? '格式化' : '执行比对';
         leftTitle.textContent = isSingle ? 'JSON 编辑器' : '源 JSON';
@@ -1143,7 +1145,7 @@ document.getElementById('action-btn').addEventListener('click', function() {
         // tooltip
         modeBtn.title = isSingle ? '切换到对比模式' : '切换到单 JSON 模式';
 
-        // 鍔ㄧ敾缁撴潫鍚庡埛鏂扮紪杈戝櫒灏哄
+        // note
         setTimeout(function() {
             editorLeft.refresh();
             if (!isSingle) editorRight.refresh();
@@ -1155,12 +1157,12 @@ document.getElementById('action-btn').addEventListener('click', function() {
         setMode(current === 'single' ? 'compare' : 'single', false);
     });
 
-    // 鍒濆鍖栵細鎭㈠涓婃淇濆瓨鐨勬ā寮?
+    // note
     var savedMode = localStorage.getItem('json_mode') || 'single';
     setMode(savedMode, true);
 })();
 
-// ==================== JSON 娣卞害缁撴瀯鍖栧姣斿紩鎿?====================
+// === Section ===
 
 
 let isDiffMode = false;
@@ -1179,7 +1181,7 @@ let activeCompareRunSeq = 0;
 const pendingCompareRequests = new Map();
 let workerUnavailableNotified = false;
 
-// --- 棰勫鐞嗭細閫掑綊鎺掑簭閿悕 (A-Z瀛楀吀搴? Rule 4) ---
+// note
 function sortObjectKeys(obj) {
     if (obj === null || typeof obj !== 'object') return obj;
     if (Array.isArray(obj)) return obj.map(sortObjectKeys);
@@ -1190,7 +1192,7 @@ function sortObjectKeys(obj) {
     return sorted;
 }
 
-// --- 鏍稿績锛氭繁搴︾粨鏋勫寲瀵规瘮绠楁硶 ---
+// note
 function deepCompare(oldVal, newVal) {
     if (oldVal === undefined && newVal === undefined) return { status: 'unchanged' };
     if (oldVal === undefined) return { status: 'added', newValue: newVal };
@@ -1199,7 +1201,7 @@ function deepCompare(oldVal, newVal) {
     if (oldVal === null && newVal === null) return { status: 'unchanged' };
     if (oldVal === null || newVal === null) return { status: 'modified', oldValue: oldVal, newValue: newVal };
 
-    // 寮虹被鍨嬫晱鎰?(Rule 5): typeof 涓嶅悓鍗充负淇敼
+    // note
 
     const oldIsArr = Array.isArray(oldVal);
     const newIsArr = Array.isArray(newVal);
@@ -1210,7 +1212,7 @@ function deepCompare(oldVal, newVal) {
     if (oldIsArr) return deepCompareArrays(oldVal, newVal);
     if (typeof oldVal === 'object') return deepCompareObjects(oldVal, newVal);
 
-    // 鍘熷鍊间弗鏍肩浉绛?
+    // note
     if (oldVal === newVal) return { status: 'unchanged' };
     return { status: 'modified', oldValue: oldVal, newValue: newVal };
 }
@@ -1239,7 +1241,7 @@ function deepCompareObjects(oldObj, newObj) {
 }
 
 function deepCompareArrays(oldArr, newArr) {
-    // 鏅鸿兘閰嶅锛氫富閿娴?鈫?鍐呭鍝堝笇绮剧‘娑堥櫎 鈫?鐩镐技搴﹁椽蹇冮厤瀵?鈫?鍏滃簳澧炲垹
+    // note
 
     var pairs = matchArrayElements(oldArr, newArr);
     var children = [];
@@ -1261,7 +1263,7 @@ function deepCompareArrays(oldArr, newArr) {
             child._oldVal = p.oldVal;
             hasChanges = true;
         } else {
-            // matched 鈥?閫掑綊姣旇緝
+            // note
             child = deepCompare(p.oldVal, p.newVal);
             child._oldVal = p.oldVal;
             child._newVal = p.newVal;
@@ -1272,14 +1274,14 @@ function deepCompareArrays(oldArr, newArr) {
     return { type: 'array', status: hasChanges ? 'modified' : 'unchanged', children: children };
 }
 
-// --- 鏁扮粍鍏冪礌鏅鸿兘閰嶅寮曟搸 ---
+// note
 function matchArrayElements(oldArr, newArr) {
     var oldLen = oldArr.length, newLen = newArr.length;
     if (oldLen === 0 && newLen === 0) return [];
     if (oldLen === 0) return newArr.map(function(v) { return { type: 'added', newVal: v }; });
     if (newLen === 0) return oldArr.map(function(v) { return { type: 'removed', oldVal: v }; });
 
-    // --- 绗?灞傦細涓婚敭鑷姩妫€娴嬶紙浠呭叏鏄璞℃椂锛?---
+    // note
 
     var allOldObj = true, allNewObj = true;
     for (var i = 0; i < oldLen; i++) { if (oldArr[i] === null || typeof oldArr[i] !== 'object' || Array.isArray(oldArr[i])) { allOldObj = false; break; } }
@@ -1290,14 +1292,14 @@ function matchArrayElements(oldArr, newArr) {
         if (pk) return matchByPrimaryKey(oldArr, newArr, pk);
     }
 
-    // --- 绗?灞傦細鍐呭鍝堝笇绮剧‘鍖归厤 + 鐩镐技搴﹂厤瀵?---
+    // note
 
     return matchByContent(oldArr, newArr);
 }
 
-// 妫€娴嬩富閿細鎵弿鎵€鏈夊璞＄殑鍏叡瀛楁锛屾壘鍒板€煎叏灞€鍞竴鐨勫瓧娈?
+// note
 function detectPrimaryKey(oldArr, newArr) {
-    // 鏀堕泦鍊欓€夊瓧娈碉紙涓や晶鎵€鏈夊璞￠兘鏈夌殑瀛楁锛?
+    // note
     var candidateKeys = null;
     var all = oldArr.concat(newArr);
     for (var i = 0; i < all.length; i++) {
@@ -1315,12 +1317,12 @@ function detectPrimaryKey(oldArr, newArr) {
         if (Object.keys(candidateKeys).length === 0) return null;
     }
 
-    // 浼樺厛绾у垪琛細甯歌涓婚敭鍚嶄紭鍏?
+    // note
     var preferred = ['id', '_id', 'Id', 'ID', 'uuid', 'key', 'code', 'name'];
     var remaining = Object.keys(candidateKeys).filter(function(k) { return preferred.indexOf(k) === -1; });
     var ordered = preferred.filter(function(k) { return candidateKeys[k]; }).concat(remaining);
 
-    // 妫€鏌ユ瘡涓€欓€夊瓧娈电殑鍊兼槸鍚﹀湪鍚勮嚜鏁扮粍鍐呭敮涓€锛屼笖鍊兼槸鍘熷绫诲瀷
+    // note
 
     for (var ci = 0; ci < ordered.length; ci++) {
         var field = ordered[ci];
@@ -1348,7 +1350,7 @@ function detectPrimaryKey(oldArr, newArr) {
     return null;
 }
 
-// 鎸変富閿厤瀵癸細浠?new 鐨勯『搴忎负鍩哄噯锛宒eleted 鐨勬彃鍦ㄥ師閭诲眳鏃?
+// note
 function matchByPrimaryKey(oldArr, newArr, pk) {
 
     var oldMap = {};
@@ -1357,7 +1359,7 @@ function matchByPrimaryKey(oldArr, newArr, pk) {
     var matchedOld = {};
     var result = [];
 
-    // 绗竴閬嶏細鎸?new 鐨勯『搴忛亶鍘嗭紝鍖归厤鎴栨爣璁版柊澧?
+    // note
     for (var i = 0; i < newArr.length; i++) {
         var key = String(newArr[i][pk]);
         if (oldMap[key]) {
@@ -1369,17 +1371,17 @@ function matchByPrimaryKey(oldArr, newArr, pk) {
         }
     }
 
-    // 绗簩閬嶏細鏀堕泦 old 涓湭鍖归厤鐨勶紙deleted锛夛紝鎻掑叆鍒扮粨鏋滀腑鍚堥€傜殑浣嶇疆
+    // note
 
     var deleted = [];
     for (var i = 0; i < oldArr.length; i++) {
         if (!matchedOld[i]) deleted.push({ type: 'removed', oldVal: oldArr[i], origIdx: i });
     }
 
-    // 鎶?deleted 椤规彃鍥烇細姣忎釜 deleted 鎻掑湪瀹冨師濮嬬浉閭诲厓绱犲搴斾綅缃殑鍓嶉潰
+    // note
 
     if (deleted.length > 0) {
-        // 寤虹珛 old 涓婚敭 鈫?result 浣嶇疆鐨勬槧灏?
+        // note
         var keyToResultIdx = {};
         for (var ri = 0; ri < result.length; ri++) {
             if (result[ri].type === 'matched') {
@@ -1389,7 +1391,7 @@ function matchByPrimaryKey(oldArr, newArr, pk) {
 
         for (var di = deleted.length - 1; di >= 0; di--) {
             var d = deleted[di];
-            // 鎵惧畠鍦?old 涓彸杈规渶杩戠殑宸插尮閰嶅厓绱?
+            // note
             var insertPos = result.length;
             for (var oi = d.origIdx + 1; oi < oldArr.length; oi++) {
                 var nk = String(oldArr[oi][pk]);
@@ -1399,7 +1401,7 @@ function matchByPrimaryKey(oldArr, newArr, pk) {
                 }
             }
             result.splice(insertPos, 0, d);
-            // 鍒锋柊鏄犲皠锛堟彃鍏ュ悗鍚庨潰鐨勭储寮曢兘+1浜嗭級
+            // note
 
             for (var k in keyToResultIdx) {
                 if (keyToResultIdx[k] >= insertPos) keyToResultIdx[k]++;
@@ -1425,18 +1427,18 @@ function cachedStringify(val) {
     return JSON.stringify(val);
 }
 
-// 鍐呭鍝堝笇閰嶅锛氱簿纭秷闄?鈫?鐩镐技搴﹁椽蹇冿紙閫傜敤浜庢贩鍚堢被鍨嬫垨鏃犱富閿殑鏁扮粍锛?
+// note
 function matchByContent(oldArr, newArr) {
 
     var oldUsed = new Array(oldArr.length);
     var newUsed = new Array(newArr.length);
 
-    // 缂撳瓨 stringify
+    // note
 
     var oldStrs = oldArr.map(function(v) { return cachedStringify(v); });
     var newStrs = newArr.map(function(v) { return cachedStringify(v); });
 
-    // --- 绮剧‘鍖归厤锛氱敤 Map 鎸夊唴瀹瑰垎妗讹紝鍚屽唴瀹规寜鍑虹幇椤哄簭閰嶅 ---
+    // note
 
     var newBuckets = {};
     for (var i = 0; i < newArr.length; i++) {
@@ -1457,7 +1459,7 @@ function matchByContent(oldArr, newArr) {
         }
     }
 
-    // --- 鐩镐技搴﹂厤瀵癸細鍓╀綑鐨勫璞″皾璇曞尮閰?---
+    // note
 
     var unmatchedOld = [];
     var unmatchedNew = [];
@@ -1465,10 +1467,10 @@ function matchByContent(oldArr, newArr) {
     for (var i = 0; i < newArr.length; i++) { if (!newUsed[i]) unmatchedNew.push(i); }
 
     if (unmatchedOld.length > 0 && unmatchedNew.length > 0) {
-        // 瀹夊叏闃€锛氬€欓€夊鏁拌秴杩囬槇鍊煎垯璺宠繃 O(n虏) 鐩镐技搴﹀尮閰嶏紝閬垮厤澶ф暟缁勫崱姝?
+        // note
         var SIM_PAIR_LIMIT = 10000;
         if (unmatchedOld.length * unmatchedNew.length <= SIM_PAIR_LIMIT) {
-            // 棰勮绠楋細涓烘瘡涓湭鍖归厤瀵硅薄缂撳瓨 { keys[], strs{key鈫抯tringify} }
+            // note
 
             function buildKeyCache(arr, indices) {
                 var caches = [];
@@ -1492,10 +1494,10 @@ function matchByContent(oldArr, newArr) {
                 for (var ni = 0; ni < simObjNew.length; ni++) {
                     if (newUsed[simObjNew[ni].idx]) continue;
                     var cB = simObjNew[ni];
-                    // 蹇€熻繃婊わ細閿暟閲忓樊璺濊繃澶х殑鐩存帴璺宠繃
+                    // note
 
                     if (Math.min(cA.keys.length, cB.keys.length) / Math.max(cA.keys.length, cB.keys.length) < 0.3) continue;
-                    // 鍚堝苟閿泦 鈫?璁＄畻鐩镐技搴︼紙甯︽棭鏈熺粓姝級
+                    // note
 
                     var allKeys = {};
                     for (var ki = 0; ki < cA.keys.length; ki++) allKeys[cA.keys[ki]] = true;
@@ -1515,7 +1517,7 @@ function matchByContent(oldArr, newArr) {
                 }
             }
 
-            // 璐績锛氭寜鐩镐技搴﹂檷搴忓彇涓嶅啿绐佺殑閰嶅
+            // note
             simCandidates.sort(function(a, b) { return b.sim - a.sim; });
             for (var i = 0; i < simCandidates.length; i++) {
                 var c = simCandidates[i];
@@ -1527,8 +1529,8 @@ function matchByContent(oldArr, newArr) {
         }
     }
 
-    // --- 姹囨€伙細浠?new 鐨勯『搴忎负鍩哄噯杈撳嚭 ---
-    // 鏋勫缓 newIdx 鈫?pair 鏄犲皠
+    // note
+    // note
 
     var newIdxToPair = {};
     for (var i = 0; i < pairs.length; i++) {
@@ -1536,13 +1538,13 @@ function matchByContent(oldArr, newArr) {
     }
 
     var result = [];
-    var deletedBeforeNew = {}; // oldIdx 鈫?闇€瑕佹彃鍦ㄥ摢涓?newIdx 鍓嶉潰
+    var deletedBeforeNew = {}; // oldIdx -> target newIdx insert position
 
-    // 瀵规湭鍖归厤鐨?old锛屾壘瀹冩渶杩戠殑宸插尮閰嶅彸閭诲眳锛屾彃鍦ㄥ鏂瑰墠闈?
+    // note
     var unmatchedOldFinal = [];
     for (var i = 0; i < oldArr.length; i++) { if (!oldUsed[i]) unmatchedOldFinal.push(i); }
 
-    // 鏋勫缓 oldIdx 鈫?newIdx 鐨勪綅缃槧灏勶紙宸查厤瀵圭殑锛?
+    // note
     var oldToNew = {};
     for (var i = 0; i < pairs.length; i++) {
         if (pairs[i].oldIdx !== undefined) oldToNew[pairs[i].oldIdx] = pairs[i].newIdx;
@@ -1550,7 +1552,7 @@ function matchByContent(oldArr, newArr) {
 
     for (var di = 0; di < unmatchedOldFinal.length; di++) {
         var oIdx = unmatchedOldFinal[di];
-        var insertBefore = newArr.length; // 榛樿鎻掓湯灏?
+        var insertBefore = newArr.length; // default append position
         for (var oi = oIdx + 1; oi < oldArr.length; oi++) {
             if (oldToNew[oi] !== undefined) { insertBefore = oldToNew[oi]; break; }
         }
@@ -1558,9 +1560,9 @@ function matchByContent(oldArr, newArr) {
         deletedBeforeNew[insertBefore].push(oIdx);
     }
 
-    // 鎸?new 鐨勯『搴忚緭鍑?
+    // note
     for (var ni = 0; ni < newArr.length; ni++) {
-        // 鍏堟彃鍏ュ簲璇ュ湪杩欎釜浣嶇疆鍓嶉潰鐨?deleted
+        // note
 
         if (deletedBeforeNew[ni]) {
             for (var d = 0; d < deletedBeforeNew[ni].length; d++) {
@@ -1578,7 +1580,7 @@ function matchByContent(oldArr, newArr) {
             result.push({ type: 'added', newVal: newArr[ni] });
         }
     }
-    // 鏈熬鐨?deleted
+    // note
 
     if (deletedBeforeNew[newArr.length]) {
         for (var d = 0; d < deletedBeforeNew[newArr.length].length; d++) {
@@ -1589,7 +1591,7 @@ function matchByContent(oldArr, newArr) {
     return result;
 }
 
-// 瀵硅薄娴呭眰鐩镐技搴︼細鐩稿悓閿腑鍊肩浉绛夌殑姣斾緥
+// note
 function objectSimilarity(a, b) {
     var isArrA = Array.isArray(a), isArrB = Array.isArray(b);
     if (isArrA !== isArrB) return 0;
@@ -1609,7 +1611,7 @@ function objectSimilarity(a, b) {
     return same / total;
 }
 
-// --- 瀛楃绾у樊寮傦細鏌ユ壘琛屽唴棣栧熬鍏叡鍖洪棿锛岄攣瀹氫腑闂村樊寮傛 ---
+// note
 function computeInlineCharDiff(oldLine, newLine) {
     let prefixLen = 0;
     const minLen = Math.min(oldLine.length, newLine.length);
@@ -1625,7 +1627,7 @@ function computeInlineCharDiff(oldLine, newLine) {
     };
 }
 
-// --- 瀵归綈娓叉煋鍣細鏍规嵁 Diff 鏍戝悓姝ョ敓鎴愬乏鍙充袱渚ц鏂囨湰 + 琛屾敞瑙?---
+// note
 function generateAlignedDiff(oldSorted, newSorted, diffTree, tabSize) {
     const leftLines = [], rightLines = [], leftAnno = [], rightAnno = [];
     const charDiffs = {};
@@ -1641,7 +1643,7 @@ function generateAlignedDiff(oldSorted, newSorted, diffTree, tabSize) {
         return idx;
     }
 
-    // 灏嗕换鎰?JSON 鍊硷紙宸叉帓搴忥級灞曞钩涓哄甫缂╄繘鐨勫琛屾枃鏈?
+    // note
     function valueToLines(val, depth, keyStr, isLast) {
         const comma = isLast ? '' : ',';
         const prefix = keyStr !== null ? (ind(depth) + JSON.stringify(keyStr) + ': ') : ind(depth);
@@ -1673,33 +1675,33 @@ function generateAlignedDiff(oldSorted, newSorted, diffTree, tabSize) {
         return lines;
     }
 
-    // 鏍稿績閫掑綊锛氬悓姝ラ亶鍘?Diff 鏍戯紝鐢熸垚宸﹀彸瀵归綈琛?
+    // note
     function walkValue(diff, oldVal, newVal, depth, keyStr, isLast) {
         const comma = isLast ? '' : ',';
         const prefix = keyStr !== null ? (ind(depth) + JSON.stringify(keyStr) + ': ') : ind(depth);
 
-        // ---- 瀹屽叏涓€鑷?----
+        // note
 
         if (diff.status === 'unchanged') {
             valueToLines(oldVal, depth, keyStr, isLast).forEach(l => push(l, l, 'unchanged', 'unchanged'));
             return;
         }
 
-        // ---- 鏂板锛氬乏渚у灚绌恒€佸彸渚х豢搴?----
+        // note
 
         if (diff.status === 'added') {
             valueToLines(newVal, depth, keyStr, isLast).forEach(l => push('', l, 'spacer', 'added'));
             return;
         }
 
-        // ---- 鍒犻櫎锛氬乏渚х孩搴曘€佸彸渚у灚绌?----
+        // note
 
         if (diff.status === 'removed') {
             valueToLines(oldVal, depth, keyStr, isLast).forEach(l => push(l, '', 'removed', 'spacer'));
             return;
         }
 
-        // ---- 淇敼锛堝鍣細Object锛?----
+        // note
 
         if (diff.type === 'object') {
             push(prefix + '{', prefix + '{', 'unchanged', 'unchanged');
@@ -1713,13 +1715,13 @@ function generateAlignedDiff(oldSorted, newSorted, diffTree, tabSize) {
             return;
         }
 
-        // ---- 淇敼锛堝鍣細Array锛?----
+        // note
 
         if (diff.type === 'array') {
             push(prefix + '[', prefix + '[', 'unchanged', 'unchanged');
             diff.children.forEach((childDiff, idx) => {
                 const isLastChild = idx === diff.children.length - 1;
-                // 鏅鸿兘閰嶅鍚?child 鑷甫 _oldVal/_newVal锛屼笉鍐嶆寜绱㈠紩鍙?
+                // note
                 const oldItem = childDiff._oldVal;
                 const newItem = childDiff._newVal;
                 walkValue(childDiff, oldItem, newItem, depth + 1, null, isLastChild);
@@ -1728,8 +1730,8 @@ function generateAlignedDiff(oldSorted, newSorted, diffTree, tabSize) {
             return;
         }
 
-        // ---- 淇敼锛堝彾瀛愶細鍘熷鍊煎彉鍖?鎴?绫诲瀷鍙樺寲锛?----
-        // 褰撲袱渚ч兘鏄崟琛屽師濮嬪€兼椂锛岀簿纭埌瀛楃绾?
+        // note
+        // note
         const oldIsPrimitive = (oldVal === null || typeof oldVal !== 'object');
         const newIsPrimitive = (newVal === null || typeof newVal !== 'object');
 
@@ -1739,7 +1741,7 @@ function generateAlignedDiff(oldSorted, newSorted, diffTree, tabSize) {
             const lineIdx = push(oldText, newText, 'modified', 'modified');
             charDiffs[lineIdx] = computeInlineCharDiff(oldText, newText);
         } else {
-            // 绫诲瀷鍙樺寲锛堝 鏁板瓧 鈫?瀵硅薄锛夛細涓や晶鍚勮嚜灞曞钩锛岀敤 spacer 鍨綈
+            // note
 
             const oldLines = valueToLines(oldVal, depth, keyStr, isLast);
             const newLines = valueToLines(newVal, depth, keyStr, isLast);
@@ -1757,16 +1759,16 @@ function generateAlignedDiff(oldSorted, newSorted, diffTree, tabSize) {
 
     walkValue(diffTree, oldSorted, newSorted, 0, null, true);
 
-    // 鍚庡鐞嗭細閫愪晶鐙珛淇閫楀彿锛堣В鍐冲洜 spacer 瀵艰嚧鐨勫熬閫楀彿閿欎贡锛?
+    // note
     function fixCommas(lines) {
         for (let i = 0; i < lines.length; i++) {
             const cur = lines[i];
             if (!cur.trim()) continue;
             const trimmed = cur.trim();
-            // 璺宠繃寮€鎷彿琛岋紙鏈熬鏄?{ 鎴?[锛?
+            // note
             if (trimmed.endsWith('{') || trimmed.endsWith('[')) continue;
 
-            // 鎵惧埌涓嬩竴涓潪绌鸿
+            // note
 
             let nextTrimmed = '';
             for (let j = i + 1; j < lines.length; j++) {
@@ -1791,7 +1793,7 @@ function generateAlignedDiff(oldSorted, newSorted, diffTree, tabSize) {
     return { leftLines, rightLines, leftAnno, rightAnno, charDiffs };
 }
 
-// --- 娓呴櫎鎵€鏈?Diff 瑙嗚鏍囪 ---
+// note
 function clearDiffMarks(options) {
     const opts = options || {};
     const fullReplace = !!opts.fullReplace;
@@ -1818,7 +1820,7 @@ function clearDiffMarks(options) {
     });
 }
 
-// --- 鍙充晶宸紓妗嗕綋锛氭壘鍒拌繛缁彉鏇磋锛屽姞涓婂寘鍥磋竟妗?---
+// note
 function collectRightDiffBlocks(rightAnno) {
     var blocks = [];
     var blockStart = -1;
@@ -1875,7 +1877,7 @@ function applyRightBordersChunked(rightAnno, renderToken) {
     });
 }
 
-// --- 鍙屼晶琛屽彿 Gutter 鏍囪 ---
+// note
 function createGutterMarker(className) {
     var el = document.createElement('div');
     el.className = className;
@@ -1929,7 +1931,7 @@ function applyGutterMarkersChunked(leftAnno, rightAnno, renderToken) {
     });
 }
 
-// --- 搴旂敤瀹屾暣 Diff 娓叉煋 ---
+// note
 function nextFrame() {
     return new Promise(function(resolve) {
         requestAnimationFrame(function() { resolve(); });
@@ -2051,7 +2053,7 @@ async function applyDiffToEditors(result, options) {
 
     clearDiffMarks({ fullReplace: true });
 
-    // 涓轰袱渚х紪杈戝櫒缁熶竴鍔犲叆 diff-gutter 鍒楋紙淇濇寔 gutter 瀹藉害涓€鑷?鈫?宸﹀彸瀵归綈锛?
+    // note
 
     const diffGutters = ['CodeMirror-linenumbers', 'CodeMirror-foldgutter', 'diff-gutter'];
     editorLeft.setOption('gutters', diffGutters);
@@ -2074,7 +2076,7 @@ async function applyDiffToEditors(result, options) {
     return renderToken;
 }
 
-// --- 鎶樺彔閫忚寰界珷锛氬湪鍙充晶鎶樺彔琛屾湯灏炬樉绀哄樊寮傜被鍨嬪皬鍦嗙偣 ---
+// note
 function buildDiffAnnoStats(leftAnno, rightAnno) {
     var len = Math.max(leftAnno.length, rightAnno.length);
     var addedPrefix = new Array(len + 1);
@@ -2192,7 +2194,7 @@ function updateDiffBadges() {
     });
 }
 
-// --- 鍙岃竟鍚屾绯荤粺锛堟粴鍔ㄥ悓姝?+ 鎶樺彔闀滃儚 + 寰界珷鏇存柊锛?---
+// note
 function enableDiffSync() {
     if (diffSyncCleanup) diffSyncCleanup();
 
@@ -2259,12 +2261,12 @@ function setCompareLoading(loading) {
     if (!btn) return;
     if (loading) {
         btn.dataset.prevText = btn.textContent;
-        btn.textContent = '瀵规瘮涓?..';
+        btn.textContent = '对比中...';
         btn.disabled = true;
         btn.style.opacity = '0.75';
         btn.style.cursor = 'wait';
     } else {
-        btn.textContent = btn.dataset.prevText || '鎵ц姣斿';
+        btn.textContent = btn.dataset.prevText || '执行比对';
         btn.disabled = false;
         btn.style.opacity = '';
         btn.style.cursor = '';
@@ -2272,11 +2274,11 @@ function setCompareLoading(loading) {
 }
 
 function createWorkerError(error) {
-    if (!error || typeof error !== 'object') return { side: 'unknown', code: 'unknown', message: 'Worker 璁＄畻澶辫触' };
+    if (!error || typeof error !== 'object') return { side: 'unknown', code: 'unknown', message: 'Worker 计算失败' };
     return {
         side: error.side || 'unknown',
         code: error.code || 'unknown',
-        message: error.message || 'Worker 璁＄畻澶辫触'
+        message: error.message || 'Worker 计算失败'
     };
 }
 
@@ -2303,7 +2305,7 @@ function ensureCompareWorker() {
             pending.reject(createWorkerError({
                 side: 'unknown',
                 code: 'worker_runtime',
-                message: (err && err.message) ? err.message : 'Worker 杩愯寮傚父'
+                message: (err && err.message) ? err.message : 'Worker 运行异常'
             }));
             pendingCompareRequests.delete(reqId);
         });
@@ -2318,7 +2320,7 @@ function requestCompareInWorker(leftText, rightText, tabSize) {
         return Promise.reject(createWorkerError({
             side: 'unknown',
             code: 'worker_unavailable',
-            message: '褰撳墠鐜涓嶆敮鎸?Web Worker'
+            message: '当前环境不支持 Web Worker'
         }));
     }
 
@@ -2358,21 +2360,21 @@ async function smartFormatThenCompareViaWorker(runSeq) {
         await applyCompareResult(result, runSeq);
         return true;
     } catch (err) {
-        const message = (err && err.message) ? err.message : '鏈煡閿欒';
-        alert('瀵规瘮澶辫触锛歕n' + message);
+        const message = (err && err.message) ? err.message : '未知错误';
+        alert('对比失败：\n' + message);
         return false;
     } finally {
         if (runSeq === activeCompareRunSeq) setCompareLoading(false);
     }
 }
 
-// --- 鍏ュ彛锛氭墽琛屾瘮瀵?---
+// note
 async function runCompare() {
     const leftText = editorLeft.getValue().trim();
     const rightText = editorRight.getValue().trim();
 
     if (!leftText || !rightText) {
-        alert('璇峰湪涓や晶闈㈡澘涓垎鍒矘璐撮渶瑕佹瘮瀵圭殑 JSON 鏁版嵁');
+        alert('请在两侧面板中分别粘贴需要比对的 JSON 数据');
         return;
     }
 
@@ -2386,7 +2388,7 @@ async function runCompare() {
     } catch (err) {
         if (runSeq !== activeCompareRunSeq) return;
 
-        // parse 失败时回落到智能修复流程，保持原容错体验
+        // note
 
         if (err && err.code === 'parse_error') {
             setCompareLoading(false);
@@ -2394,7 +2396,7 @@ async function runCompare() {
             return;
         }
 
-        // Worker 不可用时保留旧路径兜底
+        // note
 
         if (err && err.code === 'worker_unavailable') {
             if (!workerUnavailableNotified) {
@@ -2412,8 +2414,8 @@ async function runCompare() {
             }
         }
 
-        const message = (err && err.message) ? err.message : '鏈煡閿欒';
-        alert('瀵规瘮澶辫触锛歕n' + message);
+        const message = (err && err.message) ? err.message : '未知错误';
+        alert('对比失败：\n' + message);
     } finally {
         if (runSeq === activeCompareRunSeq) setCompareLoading(false);
     }
@@ -2424,13 +2426,13 @@ function tryParse(text) {
     catch(e) { return { ok: false, err: e.message }; }
 }
 
-// --- 鏅鸿兘瀹归敊妫€娴嬪櫒 ---
+// note
 function detectJsonIssues(text) {
     var fixes = [];
     var positions = []; // {line, ch, len, desc}
     var fixed = text;
 
-    // 缁熻琛屽亸绉昏〃锛堢敤浜庡皢鍏ㄥ眬 index 杞崲涓?line:ch锛?
+    // note
     var lineOffsets = [0];
     for (var i = 0; i < text.length; i++) {
         if (text[i] === '\n') lineOffsets.push(i + 1);
@@ -2444,7 +2446,7 @@ function detectJsonIssues(text) {
         return { line: lo, ch: idx - lineOffsets[lo] };
     }
 
-    // 1. BOM / 涓嶅彲瑙佸瓧绗?
+    // note
     var bomRe = /[\uFEFF\u200B\u200C\u200D\u00A0]/g;
     var m;
     while ((m = bomRe.exec(text)) !== null) {
@@ -2455,7 +2457,7 @@ function detectJsonIssues(text) {
     fixes.push({ name: 'BOM/不可见字符', count: positions.length });
     fixed = fixed.replace(bomRe, '');
 
-    // 2. 涓枃鏍囩偣
+    // note
 
     var cnPuncMap = {
         '\uff0c': ',', '\uff1a': ':', '\uff1b': ';',
@@ -2467,23 +2469,23 @@ function detectJsonIssues(text) {
     var cnKeys = Object.keys(cnPuncMap);
     var cnRe = new RegExp('[' + cnKeys.join('') + ']', 'g');
     var cnCount = 0;
-    // 鍦ㄥ師濮?text 涓婃娴嬩綅缃紙鐢ㄤ簬楂樹寒锛?
+    // note
     while ((m = cnRe.exec(text)) !== null) {
         var p = posOf(m.index);
-        positions.push({ line: p.line, ch: p.ch, len: 1, desc: '涓枃鏍囩偣 ' + m[0] + ' 鈫?' + cnPuncMap[m[0]] });
+        positions.push({ line: p.line, ch: p.ch, len: 1, desc: '中文标点 ' + m[0] + ' -> ' + cnPuncMap[m[0]] });
         cnCount++;
     }
-    if (cnCount > 0) fixes.push({ name: '涓枃鏍囩偣', count: cnCount });
+    if (cnCount > 0) fixes.push({ name: '中文标点', count: cnCount });
     fixed = fixed.replace(cnRe, function(ch) { return cnPuncMap[ch] || ch; });
 
-    // 3-6 涓嬮潰鐨勬娴嬪湪宸茬粡淇 BOM 鍜屼腑鏂囨爣鐐逛箣鍚庣殑鏂囨湰涓婅繘琛?
+    // note
     var working = fixed;
 
-    // 鍏叡妯″紡锛氬尮閰嶅弻寮曞彿瀛楃涓茬敤浜庤烦杩囷紝閬垮厤璇慨鏀瑰瓧绗︿覆鍐呴儴鍐呭
+    // note
 
     var STR_SKIP = '"(?:[^"\\\\]|\\\\.)*"';
 
-    // 3. 鍗曞紩鍙?鈫?鍙屽紩鍙凤紙璺宠繃鍙屽紩鍙峰瓧绗︿覆鍐呴儴锛岄伩鍏嶈浼?"it's" 閲岀殑鍗曞紩鍙凤級
+    // note
 
     var singleQuoteCount = 0;
     working = working.replace(new RegExp(STR_SKIP + "|'((?:[^'\\\\]|\\\\.)*)'" , 'g'), function(match, inner) {
@@ -2493,7 +2495,7 @@ function detectJsonIssues(text) {
     });
     if (singleQuoteCount > 0) fixes.push({ name: '单引号→双引号', count: singleQuoteCount });
 
-    // 4. 琛屽熬娉ㄩ噴 // 鍜屽潡娉ㄩ噴 /* */锛堣烦杩囧瓧绗︿覆鍐呴儴锛岄伩鍏?"http://..." 琚埅鏂級
+    // note
 
     var commentCount = 0;
     working = working.replace(new RegExp(STR_SKIP + '|\\/\\/[^\\n]*', 'g'), function(match) {
@@ -2504,18 +2506,18 @@ function detectJsonIssues(text) {
         if (match[0] === '"') return match;
         commentCount++; return '';
     });
-    if (commentCount > 0) fixes.push({ name: '娉ㄩ噴', count: commentCount });
+    if (commentCount > 0) fixes.push({ name: '注释', count: commentCount });
 
-    // 5. 灏鹃€楀彿锛圿 鎴?} 鍓嶇殑閫楀彿锛夛紙璺宠繃瀛楃涓插唴閮紝閬垮厤 "ok,}" 琚鏀癸級
+    // note
 
     var trailingCount = 0;
     working = working.replace(new RegExp(STR_SKIP + '|,(\\s*[}\\]])', 'g'), function(match, after) {
         if (match[0] === '"') return match;
         trailingCount++; return after;
     });
-    if (trailingCount > 0) fixes.push({ name: '灏鹃儴閫楀彿', count: trailingCount });
+    if (trailingCount > 0) fixes.push({ name: '尾部逗号', count: trailingCount });
 
-    // 6. 鏃犲紩鍙烽敭鍚嶏紙璺宠繃瀛楃涓插唴閮級
+    // note
 
     var unquotedCount = 0;
     working = working.replace(new RegExp(STR_SKIP + '|([{,]\\s*)([a-zA-Z_$][\\w$]*)(\\s*:)', 'g'), function(match, before, key, after) {
@@ -2527,8 +2529,8 @@ function detectJsonIssues(text) {
 
     fixed = working;
 
-    // 7. 缂哄皯閫楀彿妫€娴嬶紙浠呮爣璁颁笉淇锛夛細鍦ㄤ慨澶嶅悗鐨勬枃鏈笂鎵弿甯歌鐨勭己閫楀彿妯″紡
-    // 闇€瑕佸湪鍘熷 text 涓婂畾浣嶏紝鎵€浠ョ敤鍘熷鏂囨湰鐨勮鏉ユ鏌?
+    // note
+    // note
     var missingCommaCount = 0;
     var origLines = text.split('\n');
     for (var li = 0; li < origLines.length - 1; li++) {
@@ -2539,7 +2541,7 @@ function detectJsonIssues(text) {
         var curEnds = curLine[curLine.length - 1];
         var nextStarts = nextLine[0];
 
-        // 褰撳墠琛屾湯灏句笉鏄?, : { [ ( 涓斾笅涓€琛屽紑澶存槸 " { [ 鎴栧瓧姣嶆暟瀛?鈫?鐤戜技缂洪€楀彿
+        // note
 
         var noCommaEnds = (curEnds === '"' || curEnds === '}' || curEnds === ']' ||
                            curEnds === 'e' || curEnds === 'l' || // true/false/null
@@ -2549,34 +2551,34 @@ function detectJsonIssues(text) {
                                 /[0-9\-]/.test(nextStarts));
 
         if (noCommaEnds && validNextStarts) {
-            // 鎺掗櫎锛氬綋鍓嶈鏈熬鏄紑鎷彿 { [ 鎴栧啋鍙?:锛岄偅涓嶉渶瑕侀€楀彿
+            // note
 
             if (curEnds === '{' || curEnds === '[' || curEnds === ':') continue;
-            // 鎺掗櫎锛氫笅涓€琛屽紑澶存槸闂嫭鍙?} ]锛岄偅缁撳熬涓嶅簲璇ユ湁閫楀彿
+            // note
 
             if (nextStarts === '}' || nextStarts === ']') continue;
 
-            // 鎵惧埌鍘熷琛屼腑鏈熬瀛楃鐨勭簿纭綅缃?
+            // note
             var origEndCh = origLines[li].length;
             positions.push({
                 line: li,
                 ch: origEndCh - 1,
                 len: 1,
-                desc: '姝ゅ鍙兘缂哄皯閫楀彿'
+                desc: '此处可能缺少逗号'
             });
             missingCommaCount++;
         }
     }
     if (missingCommaCount > 0) fixes.push({ name: '疑似缺少逗号（需手动修复）', count: missingCommaCount, manualOnly: true });
 
-    // 杩囨护鎺?count=0 鐨?
+    // note
     fixes = fixes.filter(function(f) { return f.count > 0; });
 
 
     return { fixes: fixes, positions: positions, fixed: fixed };
 }
 
-// 楂樹寒闂浣嶇疆锛堢孩鑹蹭笅鍒掔嚎 + 鑳屾櫙锛?
+// note
 function highlightIssues(cm, positions, markers) {
     cm.operation(function() {
         for (var i = 0; i < positions.length; i++) {
@@ -2596,50 +2598,50 @@ function highlightIssues(cm, positions, markers) {
 async function applyCompareResult(result, runSeq) {
     if (runSeq !== undefined && runSeq !== activeCompareRunSeq) return;
 
-    // 存储注解供徽章系统读取
+    // note
 
     window._diffRightAnno = result.rightAnno;
     window._diffLeftAnno = result.leftAnno;
     rightFoldRangesCache = null;
     rightFoldRangesDirty = true;
 
-    // 娓叉煋鍒扮紪杈戝櫒
+    // note
     isDiffMode = true;
     const renderToken = await applyDiffToEditors(result, { deferHeavyDecorations: true });
     if (renderToken === null) return;
     if (runSeq !== undefined && runSeq !== activeCompareRunSeq) return;
 
-    // 鍒囨崲 fold gutter 涓鸿嚜瀹氫箟 range finder
+    // note
     editorLeft.setOption('foldGutter', { rangeFinder: diffBracketFold });
     editorRight.setOption('foldGutter', { rangeFinder: diffBracketFold });
 
-    // 鍚敤鍙岃竟鍚屾
+    // note
     enableDiffSync();
 
-    // fresh 鏂囨。蹇€熻矾寰勶細鏃犻渶鍏堝叏灞曞紑
+    // note
 
     await foldToLevel(editorLeft, 1, { freshDoc: true, chunked: true, chunkSize: 120 });
     if (runSeq !== undefined && runSeq !== activeCompareRunSeq) return;
     await foldToLevel(editorRight, 1, { freshDoc: true, chunked: true, chunkSize: 120 });
     if (runSeq !== undefined && runSeq !== activeCompareRunSeq) return;
 
-    // 鏇存柊鎶樺彔閫忚寰界珷
+    // note
     scheduleBadgeUpdate(true);
     void applyHeavyDiffDecorations(result, renderToken);
 }
 
 async function executeCompare(leftObj, rightObj, runSeq) {
     resetStringifyCache();
-    // 姝ラ1: 閫掑綊閿悕鎺掑簭 (Rule 4)
+    // note
 
     const oldSorted = sortObjectKeys(leftObj);
     const newSorted = sortObjectKeys(rightObj);
 
-    // 姝ラ2: 娣卞害缁撴瀯瀵规瘮
+    // note
 
     const diffTree = deepCompare(oldSorted, newSorted);
 
-    // 姝ラ3: 鐢熸垚瀵归綈琛岃緭鍑?
+    // note
 
     const result = generateAlignedDiff(oldSorted, newSorted, diffTree, currentTabSize);
     await applyCompareResult(result, runSeq);
