@@ -139,6 +139,30 @@
     }
 
     function detectPrimaryKey(oldArr, newArr) {
+        function isLikelyStableKeyName(field) {
+            var f = String(field || '').toLowerCase();
+            if (!f) return false;
+            return (
+                f === 'id' || f === '_id' || f.endsWith('_id') || f.startsWith('id_') ||
+                f === 'uuid' || f.endsWith('_uuid') ||
+                f === 'code' || f.endsWith('_code') ||
+                f === 'key' || f.endsWith('_key') ||
+                f === 'pk' || f.endsWith('_pk')
+            );
+        }
+
+        function buildUniqueScalarMap(arr, field) {
+            var map = Object.create(null);
+            for (var i = 0; i < arr.length; i++) {
+                var v = arr[i][field];
+                if (v === undefined || v === null || typeof v === 'object') return null;
+                var sv = String(v);
+                if (Object.prototype.hasOwnProperty.call(map, sv)) return null;
+                map[sv] = true;
+            }
+            return map;
+        }
+
         var candidateKeys = null;
         var all = oldArr.concat(newArr);
         for (var i = 0; i < all.length; i++) {
@@ -156,33 +180,34 @@
             if (Object.keys(candidateKeys).length === 0) return null;
         }
 
-        var preferred = ['id', '_id', 'Id', 'ID', 'uuid', 'key', 'code', 'name'];
-        var remaining = Object.keys(candidateKeys).filter(function (k) { return preferred.indexOf(k) === -1; });
-        var ordered = preferred.filter(function (k) { return candidateKeys[k]; }).concat(remaining);
+        var keys = Object.keys(candidateKeys);
+        var keyByLower = Object.create(null);
+        for (var ki = 0; ki < keys.length; ki++) {
+            var kLower = keys[ki].toLowerCase();
+            if (keyByLower[kLower] === undefined) keyByLower[kLower] = keys[ki];
+        }
+
+        var preferred = ['id', '_id', 'uuid', 'code', 'key', 'pk'];
+        var ordered = [];
+        for (var pi = 0; pi < preferred.length; pi++) {
+            var exact = keyByLower[preferred[pi]];
+            if (exact !== undefined) ordered.push(exact);
+        }
+        for (var kj = 0; kj < keys.length; kj++) {
+            var fieldName = keys[kj];
+            if (ordered.indexOf(fieldName) !== -1) continue;
+            if (isLikelyStableKeyName(fieldName)) ordered.push(fieldName);
+        }
+
+        if (ordered.length === 0) return null;
 
         for (var ci = 0; ci < ordered.length; ci++) {
             var field = ordered[ci];
-            var oldVals = {};
-            var newVals = {};
-            var valid = true;
-
-            for (var oi = 0; oi < oldArr.length; oi++) {
-                var ov = oldArr[oi][field];
-                if (ov === null || typeof ov === 'object') { valid = false; break; }
-                var osv = String(ov);
-                if (oldVals[osv]) { valid = false; break; }
-                oldVals[osv] = true;
-            }
-            if (!valid) continue;
-
-            for (var ni = 0; ni < newArr.length; ni++) {
-                var nv = newArr[ni][field];
-                if (nv === null || typeof nv === 'object') { valid = false; break; }
-                var nsv = String(nv);
-                if (newVals[nsv]) { valid = false; break; }
-                newVals[nsv] = true;
-            }
-            if (valid) return field;
+            var oldVals = buildUniqueScalarMap(oldArr, field);
+            if (!oldVals) continue;
+            var newVals = buildUniqueScalarMap(newArr, field);
+            if (!newVals) continue;
+            return field;
         }
 
         return null;
