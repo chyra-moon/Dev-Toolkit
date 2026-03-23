@@ -25,9 +25,12 @@ const floatingNav = document.getElementById('floating-nav');
 const backToToolboxBtn = document.querySelector('.back-btn');
 const backToUploadBtn = document.getElementById('back-to-upload-btn');
 const restoreHint = document.getElementById('restore-hint');
+const currentLeftFileInfo = document.getElementById('current-left-file-info');
+const currentRightFileInfo = document.getElementById('current-right-file-info');
 const input1 = document.getElementById('file-input-1');
 const input2 = document.getElementById('file-input-2');
 
+const DEFAULT_PAGE_TITLE = document.title;
 const CACHE_DB_NAME = 'excel-compare-cache-db';
 const CACHE_STORE_NAME = 'excelCompare';
 const CACHE_KEY = 'latest';
@@ -80,6 +83,26 @@ function formatDateTime(ts) {
     if (Number.isNaN(d.getTime())) return '';
     const pad = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function getCurrentFilePairNames() {
+    const leftName = (uploadSlotState.left.fileName || '').trim();
+    const rightName = (uploadSlotState.right.fileName || '').trim();
+    return { leftName, rightName };
+}
+
+function updateFileIdentityUI() {
+    const { leftName, rightName } = getCurrentFilePairNames();
+    if (currentLeftFileInfo) currentLeftFileInfo.textContent = leftName ? `${leftName} (Left)` : '';
+    if (currentRightFileInfo) currentRightFileInfo.textContent = rightName ? `${rightName} (Right)` : '';
+
+    if (leftName && rightName) {
+        document.title = `${leftName} vs ${rightName} - ${DEFAULT_PAGE_TITLE}`;
+    } else if (leftName || rightName) {
+        document.title = `${leftName || rightName} - ${DEFAULT_PAGE_TITLE}`;
+    } else {
+        document.title = DEFAULT_PAGE_TITLE;
+    }
 }
 
 function showRestoreHint(message, type) {
@@ -406,6 +429,7 @@ function renderUploadSlot(slotKey) {
     } else {
         refs.fileNameEl.textContent = '';
     }
+    updateFileIdentityUI();
 }
 
 // --- 1. 文件上传逻辑 ---

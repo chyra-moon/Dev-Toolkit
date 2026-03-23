@@ -748,13 +748,45 @@ body {
 
 .table-wrapper h3 {
     margin: 0;
-    padding: 10px 15px;
+    padding: 12px 18px 14px;
     background: #fafafa;
     border-bottom: 1px solid var(--border-color);
-    font-size: 14px;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    min-width: 0;
+}
+
+.table-panel-title {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: rgba(22, 74, 42, 0.08);
+    border: 1px solid rgba(22, 74, 42, 0.14);
+    color: #2d5f3b;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+.table-panel-file-info {
+    min-width: 0;
+    max-width: min(100%, 540px);
+    color: #164a2a;
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 /* layout modifier */
