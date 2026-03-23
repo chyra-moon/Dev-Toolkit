@@ -9,21 +9,25 @@
     <style>
         .back-btn {
             position: fixed;
-            top: 14px;
-            left: 20px;
+            top: 22px;
+            left: 24px;
             z-index: 120;
             text-decoration: none;
-            color: #107c41;
+            color: #0f5b30;
             font-weight: 600;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 4px 8px;
-            border-radius: 6px;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(16, 124, 65, 0.12);
+            box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+            backdrop-filter: blur(12px);
         }
 
         .back-btn:hover {
-            background: rgba(16, 124, 65, 0.08);
+            background: rgba(255, 255, 255, 0.95);
         }
     </style>
 </head>
@@ -32,39 +36,79 @@
 
     <!-- 第一部分：上传页面 -->
     <div id="upload-section">
-        <h1>上传文件开始对比</h1>
-        <div id="restore-hint" class="restore-hint" hidden></div>
-        <div class="upload-container">
-            <div class="drop-zone" id="drop-1">
-                <div class="icon">📄</div>
-                <p>点击或拖拽上传<br>旧文件 (原表)</p>
-                <div class="file-name" id="name-1"></div>
-                <div class="upload-meta" id="meta-1">
-                    <div class="upload-status-row">
-                        <span class="upload-status-text" id="status-1">未上传</span>
-                        <span class="upload-percent" id="percent-1">0%</span>
+        <div class="upload-shell">
+            <div class="upload-hero">
+                <div class="upload-eyebrow">Excel 文档深度对比</div>
+                <h1>上传两份工作簿开始对比</h1>
+                <p class="upload-subtitle">保留当前差异规则、恢复能力与上传状态反馈，只优化页面层次与观感，让上传流程更清晰也更耐看。</p>
+                <div class="upload-highlights">
+                    <span class="upload-highlight">支持 .xlsx / .xls</span>
+                    <span class="upload-highlight">双文件并行校验</span>
+                    <span class="upload-highlight">可恢复上次文档</span>
+                </div>
+                <div id="restore-hint" class="restore-hint" hidden></div>
+            </div>
+
+            <div class="upload-container">
+                <div class="upload-panel">
+                    <div class="upload-panel-header">
+                        <span class="upload-panel-label">旧文件</span>
+                        <span class="upload-panel-meta">作为原表基准</span>
                     </div>
-                    <div class="upload-progress">
-                        <div class="upload-progress-bar" id="progress-1"></div>
+                    <div class="drop-zone" id="drop-1">
+                        <div class="icon">📄</div>
+                        <div class="drop-zone-copy">
+                            <strong>上传旧文件（原表）</strong>
+                            <p>点击选择或直接拖拽 Excel 文件</p>
+                        </div>
+                        <div class="file-name" id="name-1"></div>
+                        <div class="upload-meta" id="meta-1">
+                            <div class="upload-status-row">
+                                <span class="upload-status-text" id="status-1">未上传</span>
+                                <span class="upload-percent" id="percent-1">0%</span>
+                            </div>
+                            <div class="upload-progress">
+                                <div class="upload-progress-bar" id="progress-1"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="upload-connector" aria-hidden="true">
+                    <span>VS</span>
+                    <small>双向校验</small>
+                </div>
+
+                <div class="upload-panel">
+                    <div class="upload-panel-header">
+                        <span class="upload-panel-label">新文件</span>
+                        <span class="upload-panel-meta">作为更新目标</span>
+                    </div>
+                    <div class="drop-zone" id="drop-2">
+                        <div class="icon">📄</div>
+                        <div class="drop-zone-copy">
+                            <strong>上传新文件（新表）</strong>
+                            <p>支持拖拽上传，保持现有解析体验</p>
+                        </div>
+                        <div class="file-name" id="name-2"></div>
+                        <div class="upload-meta" id="meta-2">
+                            <div class="upload-status-row">
+                                <span class="upload-status-text" id="status-2">未上传</span>
+                                <span class="upload-percent" id="percent-2">0%</span>
+                            </div>
+                            <div class="upload-progress">
+                                <div class="upload-progress-bar" id="progress-2"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="drop-zone" id="drop-2">
-                <div class="icon">📄</div>
-                <p>点击或拖拽上传<br>新文件 (新表)</p>
-                <div class="file-name" id="name-2"></div>
-                <div class="upload-meta" id="meta-2">
-                    <div class="upload-status-row">
-                        <span class="upload-status-text" id="status-2">未上传</span>
-                        <span class="upload-percent" id="percent-2">0%</span>
-                    </div>
-                    <div class="upload-progress">
-                        <div class="upload-progress-bar" id="progress-2"></div>
-                    </div>
-                </div>
+
+            <div class="upload-actions">
+                <button id="start-btn" disabled>开始对比</button>
+                <p class="upload-action-note">两侧文件解析成功后即可进入对比页面，重新上传会自动覆盖当前内容。</p>
             </div>
         </div>
-        <button id="start-btn" disabled>开始对比</button>
         <input type="file" id="file-input-1" hidden accept=".xlsx, .xls">
         <input type="file" id="file-input-2" hidden accept=".xlsx, .xls">
     </div>
