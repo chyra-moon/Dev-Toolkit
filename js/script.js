@@ -22,44 +22,490 @@ const applyAllCheck = document.getElementById('apply-all-check');
 const wrapperLeft = document.getElementById('wrapper-left');
 const wrapperRight = document.getElementById('wrapper-right');
 const floatingNav = document.getElementById('floating-nav');
+const backToToolboxBtn = document.querySelector('.back-btn');
+const backToUploadBtn = document.getElementById('back-to-upload-btn');
+const restoreHint = document.getElementById('restore-hint');
+const input1 = document.getElementById('file-input-1');
+const input2 = document.getElementById('file-input-2');
+
+const CACHE_DB_NAME = 'excel-compare-cache-db';
+const CACHE_STORE_NAME = 'excelCompare';
+const CACHE_KEY = 'latest';
+const MAX_SINGLE_CACHE_BYTES = 30 * 1024 * 1024;
+const MAX_TOTAL_CACHE_BYTES = 60 * 1024 * 1024;
+let cacheSaveTimer = null;
+
+const uploadSlotRefs = {
+    left: {
+        dropZone: drop1,
+        fileNameEl: document.getElementById('name-1'),
+        statusEl: document.getElementById('status-1'),
+        percentEl: document.getElementById('percent-1'),
+        progressBarEl: document.getElementById('progress-1')
+    },
+    right: {
+        dropZone: drop2,
+        fileNameEl: document.getElementById('name-2'),
+        statusEl: document.getElementById('status-2'),
+        percentEl: document.getElementById('percent-2'),
+        progressBarEl: document.getElementById('progress-2')
+    }
+};
+
+const uploadSlotState = {
+    left: { status: 'idle', progress: 0, fileName: '', fileSize: 0, type: '', lastModified: 0, buffer: null, message: '', parseTimer: null, taskId: 0 },
+    right: { status: 'idle', progress: 0, fileName: '', fileSize: 0, type: '', lastModified: 0, buffer: null, message: '', parseTimer: null, taskId: 0 }
+};
+
+function clampProgress(value) {
+    return Math.max(0, Math.min(100, Math.round(value || 0)));
+}
+
+function formatFileSize(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let size = bytes;
+    let idx = 0;
+    while (size >= 1024 && idx < units.length - 1) {
+        size /= 1024;
+        idx++;
+    }
+    const precision = idx === 0 ? 0 : (size >= 100 ? 0 : (size >= 10 ? 1 : 2));
+    return size.toFixed(precision) + ' ' + units[idx];
+}
+
+function formatDateTime(ts) {
+    if (!Number.isFinite(ts)) return '';
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function showRestoreHint(message, type) {
+    if (!restoreHint) return;
+    if (!message) {
+        restoreHint.hidden = true;
+        restoreHint.textContent = '';
+        restoreHint.classList.remove('is-warning', 'is-info');
+        return;
+    }
+    restoreHint.hidden = false;
+    restoreHint.textContent = message;
+    restoreHint.classList.remove('is-warning', 'is-info');
+    if (type === 'warning') {
+        restoreHint.classList.add('is-warning');
+    } else if (type === 'info') {
+        restoreHint.classList.add('is-info');
+    }
+}
+
+function updateTopBackButtons(isResultVisible) {
+    if (backToToolboxBtn) {
+        backToToolboxBtn.classList.toggle('is-hidden', !!isResultVisible);
+    }
+}
+
+function normalizeBuffer(value) {
+    if (value instanceof ArrayBuffer) return value;
+    if (ArrayBuffer.isView(value)) {
+        return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+    }
+    return null;
+}
+
+function parseWorkbookBuffer(arrayBuffer) {
+    const normalized = normalizeBuffer(arrayBuffer);
+    if (!normalized) throw new Error('Invalid workbook buffer');
+    const data = new Uint8Array(normalized);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const sheets = {};
+    workbook.SheetNames.forEach((name) => {
+        sheets[name] = XLSX.utils.sheet_to_json(workbook.Sheets[name], {
+            header: 1,
+            defval: '',
+            raw: false
+        });
+    });
+    return sheets;
+}
+
+function applySlotSuccess(slotKey, sheets, meta, buffer) {
+    const slot = uploadSlotState[slotKey];
+    clearParseTimer(slotKey);
+    slot.status = 'success';
+    slot.progress = 100;
+    slot.message = '';
+    slot.fileName = meta.name || slot.fileName || '';
+    const normalizedBuffer = normalizeBuffer(buffer);
+    slot.fileSize = Number.isFinite(meta.size) ? meta.size : (normalizedBuffer ? normalizedBuffer.byteLength : 0);
+    slot.type = meta.type || '';
+    slot.lastModified = Number.isFinite(meta.lastModified) ? meta.lastModified : 0;
+    slot.buffer = normalizedBuffer;
+
+    if (slotKey === 'left') file1Data = sheets;
+    else file2Data = sheets;
+    renderUploadSlot(slotKey);
+}
+
+function isIndexedDbSupported() {
+    return typeof indexedDB !== 'undefined';
+}
+
+function openCacheDb() {
+    return new Promise((resolve, reject) => {
+        if (!isIndexedDbSupported()) {
+            reject(new Error('IndexedDB unavailable'));
+            return;
+        }
+        const request = indexedDB.open(CACHE_DB_NAME, 1);
+        request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(CACHE_STORE_NAME)) {
+                db.createObjectStore(CACHE_STORE_NAME, { keyPath: 'key' });
+            }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('Open cache db failed'));
+    });
+}
+
+async function runCacheRequest(mode, action) {
+    const db = await openCacheDb();
+    return new Promise((resolve, reject) => {
+        let request = null;
+        let settled = false;
+        const finishResolve = (val) => {
+            if (!settled) {
+                settled = true;
+                resolve(val);
+            }
+        };
+        const finishReject = (err) => {
+            if (!settled) {
+                settled = true;
+                reject(err);
+            }
+        };
+        try {
+            const tx = db.transaction(CACHE_STORE_NAME, mode);
+            const store = tx.objectStore(CACHE_STORE_NAME);
+            request = action(store);
+            request.onsuccess = () => finishResolve(request.result);
+            request.onerror = () => finishReject(request.error || new Error('Cache request failed'));
+            tx.onerror = () => finishReject(tx.error || new Error('Cache transaction failed'));
+            tx.onabort = () => finishReject(tx.error || new Error('Cache transaction aborted'));
+            tx.oncomplete = () => db.close();
+        } catch (err) {
+            db.close();
+            finishReject(err);
+        }
+    });
+}
+
+async function clearLatestCompareCache() {
+    if (!isIndexedDbSupported()) return;
+    await runCacheRequest('readwrite', (store) => store.delete(CACHE_KEY));
+}
+
+async function saveLatestCompareCache(payload) {
+    if (!isIndexedDbSupported()) return false;
+    const leftBytes = payload.left && payload.left.buffer ? payload.left.buffer.byteLength : 0;
+    const rightBytes = payload.right && payload.right.buffer ? payload.right.buffer.byteLength : 0;
+    const totalBytes = leftBytes + rightBytes;
+    if (leftBytes > MAX_SINGLE_CACHE_BYTES || rightBytes > MAX_SINGLE_CACHE_BYTES || totalBytes > MAX_TOTAL_CACHE_BYTES) {
+        await clearLatestCompareCache();
+        showRestoreHint('当前文件较大（超过本地缓存阈值），本次不参与自动恢复。', 'warning');
+        return false;
+    }
+    await runCacheRequest('readwrite', (store) => store.put(payload));
+    return true;
+}
+
+async function restoreLatestCompareCache() {
+    if (!isIndexedDbSupported()) return false;
+    let cache = null;
+    try {
+        cache = await runCacheRequest('readonly', (store) => store.get(CACHE_KEY));
+    } catch (err) {
+        console.warn('Read cache failed:', err);
+        return false;
+    }
+    if (!cache || !cache.left || !cache.right || !cache.left.buffer || !cache.right.buffer) {
+        return false;
+    }
+
+    try {
+        const leftBuffer = normalizeBuffer(cache.left.buffer);
+        const rightBuffer = normalizeBuffer(cache.right.buffer);
+        if (!leftBuffer || !rightBuffer) {
+            throw new Error('Cached buffer is invalid');
+        }
+        const leftSheets = parseWorkbookBuffer(leftBuffer);
+        const rightSheets = parseWorkbookBuffer(rightBuffer);
+        sheetConfigs = (cache.sheetConfigs && typeof cache.sheetConfigs === 'object') ? cache.sheetConfigs : {};
+
+        applySlotSuccess('left', leftSheets, cache.left, leftBuffer);
+        applySlotSuccess('right', rightSheets, cache.right, rightBuffer);
+        checkReady();
+
+        const timeText = formatDateTime(cache.updatedAt);
+        const leftName = cache.left.name || '旧文件';
+        const rightName = cache.right.name || '新文件';
+        showRestoreHint(`已恢复上次文档：${leftName} / ${rightName}${timeText ? `（${timeText}）` : ''}，可直接开始对比。`, 'info');
+        return true;
+    } catch (err) {
+        console.warn('Restore cache failed:', err);
+        try {
+            await clearLatestCompareCache();
+        } catch (clearErr) {
+            console.warn('Clear broken cache failed:', clearErr);
+        }
+        showRestoreHint('上次缓存恢复失败，已自动清理，请重新上传文件。', 'warning');
+        return false;
+    }
+}
+
+async function saveLatestCompareCacheFromState() {
+    const left = uploadSlotState.left;
+    const right = uploadSlotState.right;
+    if (!left.buffer || !right.buffer) return false;
+    const payload = {
+        key: CACHE_KEY,
+        updatedAt: Date.now(),
+        left: {
+            name: left.fileName,
+            size: left.fileSize,
+            type: left.type,
+            lastModified: left.lastModified,
+            buffer: left.buffer
+        },
+        right: {
+            name: right.fileName,
+            size: right.fileSize,
+            type: right.type,
+            lastModified: right.lastModified,
+            buffer: right.buffer
+        },
+        sheetConfigs: JSON.parse(JSON.stringify(sheetConfigs || {}))
+    };
+    return saveLatestCompareCache(payload);
+}
+
+function scheduleCacheSave(delay) {
+    if (cacheSaveTimer) {
+        clearTimeout(cacheSaveTimer);
+        cacheSaveTimer = null;
+    }
+    cacheSaveTimer = setTimeout(() => {
+        saveLatestCompareCacheFromState().catch((err) => {
+            console.warn('Save cache failed:', err);
+        });
+    }, Number.isFinite(delay) ? delay : 250);
+}
+
+function showUploadUI(options) {
+    const keepLoadedState = !options || options.keepLoadedState !== false;
+    const exitFullscreenBtnEl = document.getElementById('exit-fullscreen-btn');
+    if (isFullscreen && exitFullscreenBtnEl) {
+        exitFullscreenBtnEl.click();
+    } else {
+        document.body.classList.remove('fullscreen-mode');
+        floatingNav.style.display = 'none';
+        const fullscreenBtnEl = document.getElementById('fullscreen-btn');
+        const fsControlsEl = document.getElementById('fs-controls');
+        if (fullscreenBtnEl) fullscreenBtnEl.style.display = 'flex';
+        if (fsControlsEl) fsControlsEl.style.display = 'none';
+    }
+
+    uploadSection.classList.remove('collapsed');
+    resultSection.style.display = 'none';
+    updateTopBackButtons(false);
+
+    if (!keepLoadedState) {
+        file1Data = null;
+        file2Data = null;
+        commonSheets = [];
+        currentSheetIndex = 0;
+        sheetConfigs = {};
+        ['left', 'right'].forEach((slotKey) => {
+            const slot = uploadSlotState[slotKey];
+            clearParseTimer(slotKey);
+            slot.status = 'idle';
+            slot.progress = 0;
+            slot.fileName = '';
+            slot.fileSize = 0;
+            slot.type = '';
+            slot.lastModified = 0;
+            slot.buffer = null;
+            slot.message = '';
+            renderUploadSlot(slotKey);
+        });
+    }
+    checkReady();
+}
+
+function clearParseTimer(slotKey) {
+    const slot = uploadSlotState[slotKey];
+    if (slot.parseTimer) {
+        clearInterval(slot.parseTimer);
+        slot.parseTimer = null;
+    }
+}
+
+function startParsingVisual(slotKey) {
+    const slot = uploadSlotState[slotKey];
+    clearParseTimer(slotKey);
+    slot.status = 'parsing';
+    slot.progress = Math.max(slot.progress, 65);
+    renderUploadSlot(slotKey);
+
+    slot.parseTimer = setInterval(() => {
+        const state = uploadSlotState[slotKey];
+        if (state.status !== 'parsing') {
+            clearParseTimer(slotKey);
+            return;
+        }
+        if (state.progress < 95) {
+            state.progress = Math.min(95, state.progress + 2);
+            renderUploadSlot(slotKey);
+        }
+    }, 100);
+}
+
+function renderUploadSlot(slotKey) {
+    const slot = uploadSlotState[slotKey];
+    const refs = uploadSlotRefs[slotKey];
+    if (!refs || !refs.dropZone) return;
+
+    const progress = clampProgress(slot.progress);
+    const zone = refs.dropZone;
+    zone.classList.remove('is-idle', 'is-reading', 'is-parsing', 'is-success', 'is-error');
+    zone.classList.add('is-' + slot.status);
+
+    let statusText = '未上传';
+    if (slot.status === 'reading') statusText = '上传中';
+    else if (slot.status === 'parsing') statusText = '解析中';
+    else if (slot.status === 'success') statusText = '上传成功';
+    else if (slot.status === 'error') statusText = slot.message || '上传失败，可重试';
+
+    refs.statusEl.textContent = statusText;
+    refs.statusEl.classList.toggle('is-success', slot.status === 'success');
+    refs.statusEl.classList.toggle('is-error', slot.status === 'error');
+
+    refs.percentEl.textContent = progress + '%';
+    refs.progressBarEl.style.width = progress + '%';
+    refs.progressBarEl.classList.toggle('is-parsing', slot.status === 'parsing');
+    refs.progressBarEl.classList.toggle('is-success', slot.status === 'success');
+    refs.progressBarEl.classList.toggle('is-error', slot.status === 'error');
+
+    if (slot.status === 'success' && slot.fileName) {
+        refs.fileNameEl.textContent = `${slot.fileName} (${formatFileSize(slot.fileSize)})`;
+    } else if (slot.fileName) {
+        refs.fileNameEl.textContent = slot.fileName;
+    } else {
+        refs.fileNameEl.textContent = '';
+    }
+}
 
 // --- 1. 文件上传逻辑 ---
 
 function handleFile(file, isFirst) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        
-        // 解析所有 sheet 为 JSON
-        const sheets = {};
-        workbook.SheetNames.forEach(name => {
-            // header: 1 生成二维数组
-            // raw: false 保证读取到的是 Excel 中显示的格式化文本（如日期 2023-01-01 而不是数字）
-            // blankrows: true 确保不遗漏中间的空行
-            sheets[name] = XLSX.utils.sheet_to_json(workbook.Sheets[name], { 
-                header: 1, 
-                defval: '',
-                raw: false
-            });
-        });
+    if (!file) return;
+    if (typeof XLSX === 'undefined' || !XLSX || typeof XLSX.read !== 'function') {
+        alert('Excel 解析库尚未就绪，请稍后再试。如果持续失败，请刷新页面。');
+        return;
+    }
 
-        if (isFirst) {
-            file1Data = sheets;
-            document.getElementById('name-1').textContent = file.name;
-        } else {
-            file2Data = sheets;
-            document.getElementById('name-2').textContent = file.name;
-        }
+    const slotKey = isFirst ? 'left' : 'right';
+    const slot = uploadSlotState[slotKey];
+    const currentTaskId = ++slot.taskId;
+
+    clearParseTimer(slotKey);
+    slot.status = 'reading';
+    slot.progress = 0;
+    slot.fileName = file.name || '';
+    slot.fileSize = file.size || 0;
+    slot.type = file.type || '';
+    slot.lastModified = file.lastModified || 0;
+    slot.buffer = null;
+    slot.message = '';
+    showRestoreHint('');
+    renderUploadSlot(slotKey);
+
+    if (isFirst) file1Data = null;
+    else file2Data = null;
+    checkReady();
+
+    const isStaleTask = () => uploadSlotState[slotKey].taskId !== currentTaskId;
+    const failSlot = (message) => {
+        if (isStaleTask()) return;
+        clearParseTimer(slotKey);
+        if (isFirst) file1Data = null;
+        else file2Data = null;
+        slot.status = 'error';
+        slot.progress = Math.max(8, Math.min(100, slot.progress));
+        slot.message = message;
+        renderUploadSlot(slotKey);
         checkReady();
     };
+
+    const reader = new FileReader();
+    reader.onloadstart = () => {
+        if (isStaleTask()) return;
+        slot.status = 'reading';
+        slot.progress = Math.max(2, slot.progress);
+        renderUploadSlot(slotKey);
+    };
+
+    reader.onprogress = (e) => {
+        if (isStaleTask()) return;
+        if (e.lengthComputable && e.total > 0) {
+            slot.progress = Math.max(slot.progress, Math.min(70, (e.loaded / e.total) * 70));
+        } else {
+            slot.progress = Math.min(70, slot.progress + 2);
+        }
+        renderUploadSlot(slotKey);
+    };
+
+    reader.onerror = () => failSlot('上传失败，请重试');
+    reader.onabort = () => failSlot('上传已取消，请重新上传');
+
+    reader.onload = (e) => {
+        if (isStaleTask()) return;
+        startParsingVisual(slotKey);
+
+        setTimeout(() => {
+            if (isStaleTask()) return;
+            try {
+                const arrayBuffer = e.target.result;
+                const sheets = parseWorkbookBuffer(arrayBuffer);
+                applySlotSuccess(slotKey, sheets, {
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    lastModified: file.lastModified
+                }, arrayBuffer);
+            } catch (err) {
+                console.error('Excel parse error:', err);
+                failSlot('解析失败，请检查文件格式');
+                return;
+            }
+
+            const ready = checkReady();
+            if (ready) {
+                scheduleCacheSave(150);
+            }
+        }, 0);
+    };
+
     reader.readAsArrayBuffer(file);
 }
 
 function checkReady() {
-    if (file1Data && file2Data) {
-        startBtn.disabled = false;
-    }
+    const ready = uploadSlotState.left.status === 'success' && uploadSlotState.right.status === 'success';
+    startBtn.disabled = !ready;
+    return ready;
 }
 
 // 绑定拖拽事件
@@ -73,13 +519,34 @@ function checkReady() {
     });
     // 点击触发 input
     el.addEventListener('click', () => {
-        document.getElementById(index === 0 ? 'file-input-1' : 'file-input-2').click();
+        const input = index === 0 ? input1 : input2;
+        input.value = '';
+        input.click();
     });
 });
-document.getElementById('file-input-1').addEventListener('change', (e) => handleFile(e.target.files[0], true));
-document.getElementById('file-input-2').addEventListener('change', (e) => handleFile(e.target.files[0], false));
 
+input1.addEventListener('change', (e) => {
+    handleFile(e.target.files[0], true);
+    e.target.value = '';
+});
 
+input2.addEventListener('change', (e) => {
+    handleFile(e.target.files[0], false);
+    e.target.value = '';
+});
+
+if (backToUploadBtn) {
+    backToUploadBtn.addEventListener('click', () => {
+        showUploadUI({ keepLoadedState: true });
+    });
+}
+
+renderUploadSlot('left');
+renderUploadSlot('right');
+showUploadUI({ keepLoadedState: true });
+restoreLatestCompareCache().catch((err) => {
+    console.warn('Initial cache restore failed:', err);
+});
 // --- 2. 对比初始化逻辑 ---
 
 startBtn.addEventListener('click', () => {
@@ -252,12 +719,16 @@ confirmKeyBtn.onclick = () => {
     
     // 重新加载当前 Sheet
     loadSheet(sheetName);
+    if (checkReady()) {
+        scheduleCacheSave(80);
+    }
 };
 
 
 function showComparisonUI() {
     uploadSection.classList.add('collapsed');
     resultSection.style.display = 'flex';
+    updateTopBackButtons(true);
     
     renderTabs();
     // 默认加载第一个 Sheet
@@ -444,7 +915,9 @@ function performDiff(sheetName) {
     if (!sheetConfigs[sheetName]) {
         const detectedKeys = autoDetectKeys(sheetName);
         sheetConfigs[sheetName] = { keys: detectedKeys };
-        // 可以在这里提示用户“已自动识别主键为...”
+        if (checkReady()) {
+            scheduleCacheSave(120);
+        }
     }
     
     const keys = sheetConfigs[sheetName].keys;

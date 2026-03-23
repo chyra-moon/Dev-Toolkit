@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Excel 比较器</title>
     <!-- 引入 SheetJS 处理 Excel -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="../css/style.css">
     <style>
         .back-btn {
@@ -34,16 +33,35 @@
     <!-- 第一部分：上传页面 -->
     <div id="upload-section">
         <h1>上传文件开始对比</h1>
+        <div id="restore-hint" class="restore-hint" hidden></div>
         <div class="upload-container">
             <div class="drop-zone" id="drop-1">
                 <div class="icon">📄</div>
                 <p>点击或拖拽上传<br>旧文件 (原表)</p>
                 <div class="file-name" id="name-1"></div>
+                <div class="upload-meta" id="meta-1">
+                    <div class="upload-status-row">
+                        <span class="upload-status-text" id="status-1">未上传</span>
+                        <span class="upload-percent" id="percent-1">0%</span>
+                    </div>
+                    <div class="upload-progress">
+                        <div class="upload-progress-bar" id="progress-1"></div>
+                    </div>
+                </div>
             </div>
             <div class="drop-zone" id="drop-2">
                 <div class="icon">📄</div>
                 <p>点击或拖拽上传<br>新文件 (新表)</p>
                 <div class="file-name" id="name-2"></div>
+                <div class="upload-meta" id="meta-2">
+                    <div class="upload-status-row">
+                        <span class="upload-status-text" id="status-2">未上传</span>
+                        <span class="upload-percent" id="percent-2">0%</span>
+                    </div>
+                    <div class="upload-progress">
+                        <div class="upload-progress-bar" id="progress-2"></div>
+                    </div>
+                </div>
             </div>
         </div>
         <button id="start-btn" disabled>开始对比</button>
@@ -53,22 +71,27 @@
 
     <!-- 第二部分：结果页面 -->
     <div id="result-section">
+        <!-- 工具栏 -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <button class="btn-icon" id="back-to-upload-btn">← 返回上传界面重新上传</button>
+            </div>
+            <div class="toolbar-center">
+                <h2>对比结果 <span id="current-key-info"></span></h2>
+            </div>
+            <div class="toolbar-right">
+                <button class="btn-icon" onclick="showKeySelectionModal(commonSheets[currentSheetIndex])">⚙ 设置主键</button>
+                <button class="btn-icon" id="fullscreen-btn">🖥️ 全屏显示</button>
+                <div id="fs-controls">
+                    <button class="btn-icon" id="layout-toggle-btn">📖 切换布局</button>
+                    <button class="btn-icon" id="exit-fullscreen-btn">❎ 退出全屏</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 顶部 Sheet 导航 (普通模式) -->
         <div id="normal-sheet-nav">
             <!-- 动态生成 Tab -->
-        </div>
-
-        <!-- 工具栏 -->
-        <div class="toolbar">
-            <h2>对比结果 <span style="font-size:12px; color:#666; font-weight:normal; margin-left:10px;" id="current-key-info"></span></h2>
-            <div style="display: flex; gap: 10px;">
-                <button class="btn-icon" onclick="showKeySelectionModal(commonSheets[currentSheetIndex])">⚙ 设置主键</button>
-                <button class="btn-icon" id="fullscreen-btn">🖥️ 全屏显示</button>
-                <div id="fs-controls" style="display: none; gap: 5px;">
-                     <button class="btn-icon" id="layout-toggle-btn">📖 切换布局</button>
-                     <button class="btn-icon" id="exit-fullscreen-btn">❎ 退出全屏</button>
-                </div>
-            </div>
         </div>
 
         <!-- 对比视图主体 -->
@@ -130,6 +153,7 @@
         </div>
     </div>
 
-    <script src="../js/script.js"></script>
+    <script defer src="../js/lib/xlsx.full.min.js"></script>
+    <script defer src="../js/script.js"></script>
 </body>
 </html>
